@@ -1,3 +1,8 @@
 {
-  "installCommand": "sh vercel-install.sh"
+  "installCommand": "sh vercel-install.sh",
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "https://auction-app-api-production.up.railway.app/api"
+    }
+  }
 }
