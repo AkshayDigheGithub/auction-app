@@ -1,8 +1,6 @@
 #!/bin/sh
 set -x
 rm -rf node_modules package-lock.json
-npm install
+npm install --libc=glibc
 echo "--- DEBUG lightningcss ---"
-node -p "process.platform + ' ' + process.arch"
 ls node_modules | grep lightningcss || echo "no lightningcss packages found"
-ls node_modules/lightningcss/node/ 2>&1 || echo "no lightningcss/node dir"
