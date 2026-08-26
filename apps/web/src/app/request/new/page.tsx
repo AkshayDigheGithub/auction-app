@@ -15,6 +15,13 @@ interface CreatedRequest {
   id: string;
 }
 
+interface ProductCategory {
+  id: string;
+  name: string;
+  slug: string;
+  children: { id: string; name: string; slug: string }[];
+}
+
 export default function NewRequestPage() {
   const { ready, user } = useRequireRole("customer");
   const router = useRouter();
@@ -23,6 +30,8 @@ export default function NewRequestPage() {
   const [description, setDescription] = useState("");
   const [areaText, setAreaText] = useState("");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [productCategoryId, setProductCategoryId] = useState("");
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,6 +100,16 @@ export default function NewRequestPage() {
     mapRef.current.panTo(pos);
   }, [coords]);
 
+  // Category list for the picker. A failure here is non-fatal: the field just
+  // does not render and the request posts uncategorised, as it did before.
+  useEffect(() => {
+    if (!ready || !user) return;
+    api
+      .get<ProductCategory[]>("/catalog/product-categories")
+      .then(setCategories)
+      .catch(() => setCategories([]));
+  }, [ready, user]);
+
   function useMyLocation() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -115,6 +134,7 @@ export default function NewRequestPage() {
         productName,
         description: description || undefined,
         areaText,
+        productCategoryId: productCategoryId || undefined,
         ...coords,
       });
       router.push(`/request/${request.id}`);
@@ -147,6 +167,37 @@ export default function NewRequestPage() {
             className={inputClass}
           />
         </label>
+
+        {/* Optional by design: it sharpens which shops get woken up, but a
+            customer who just types "iPhone 15" must still be able to post. */}
+        {categories.length > 0 && (
+          <label className={labelClass}>
+            Category (optional)
+            <select
+              value={productCategoryId}
+              onChange={(e) => setProductCategoryId(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Not sure / other</option>
+              {categories.map((parent) => (
+                <optgroup key={parent.id} label={parent.name}>
+                  {parent.children.length === 0 ? (
+                    <option value={parent.id}>{parent.name}</option>
+                  ) : (
+                    parent.children.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        {child.name}
+                      </option>
+                    ))
+                  )}
+                </optgroup>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
+              Helps us send your request to shops that actually stock it.
+            </span>
+          </label>
+        )}
 
         <label className={labelClass}>
           Details (optional)

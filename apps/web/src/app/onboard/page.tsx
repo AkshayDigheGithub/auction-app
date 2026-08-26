@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useRequireRole } from "@/lib/use-require-role";
 import { GMap, GMapMarker, GOOGLE_MAPS_ENABLED, loadGoogleMaps } from "@/lib/google-maps";
+import { describeFee } from "@/lib/money";
 import { Badge, ErrorBanner, ghostButtonClass, inputClass, labelClass, LoadingScreen, primaryButtonClass, Spinner } from "@/components/ui";
 
 // Matches the API's mock geocoder fallback (apps/api/src/geo/providers/mock-geocoding.provider.ts).
@@ -17,6 +18,17 @@ interface Shop {
   longitude: number;
   upiId: string | null;
   verified: boolean;
+  category: string;
+}
+
+interface ShopCategoryOption {
+  category: string;
+  label: string;
+  rateBps: number | null;
+  capPaise: number | null;
+  floorPaise: number | null;
+  flatFeePaise: number | null;
+  active: boolean;
 }
 
 export default function OnboardPage() {
@@ -28,6 +40,9 @@ export default function OnboardPage() {
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [upiId, setUpiId] = useState("");
   const [verified, setVerified] = useState(false);
+  const [category, setCategory] = useState("mobile_electronics");
+  const [existingCategory, setExistingCategory] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<ShopCategoryOption[]>([]);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +63,8 @@ export default function OnboardPage() {
         setCoords({ latitude: shop.latitude, longitude: shop.longitude });
         setUpiId(shop.upiId ?? "");
         setVerified(shop.verified);
+        setCategory(shop.category);
+        setExistingCategory(shop.category);
       })
       .catch(() => {});
   }, [ready, user]);
@@ -124,6 +141,18 @@ export default function OnboardPage() {
     );
   }
 
+  // Category list with the fee each one attracts. Non-fatal if it fails: the
+  // field simply doesn't render and the existing category is kept.
+  useEffect(() => {
+    if (!ready || !user) return;
+    api
+      .get<ShopCategoryOption[]>("/catalog/shop-categories")
+      .then(setCategoryOptions)
+      .catch(() => setCategoryOptions([]));
+  }, [ready, user]);
+
+  const selectedCategory = categoryOptions.find((o) => o.category === category) ?? null;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!coords) {
@@ -137,7 +166,7 @@ export default function OnboardPage() {
         shopName,
         address,
         ...coords,
-        category: "mobile_electronics",
+        category,
         upiId: upiId || undefined,
       });
       router.push("/nearby");
@@ -162,6 +191,39 @@ export default function OnboardPage() {
           Shop name
           <input required value={shopName} onChange={(e) => setShopName(e.target.value)} className={inputClass} />
         </label>
+
+        {/* The fee is shown BEFORE the shop commits. Pricing transparency at
+            signup is a trust feature, not a disclosure chore. */}
+        {categoryOptions.length > 0 && (
+          <label className={labelClass}>
+            What do you sell?
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={inputClass}
+              disabled={existingCategory != null}
+            >
+              {categoryOptions
+                .filter((o) => o.active || o.category === category)
+                .map((o) => (
+                  <option key={o.category} value={o.category}>
+                    {o.label}
+                  </option>
+                ))}
+            </select>
+            {selectedCategory && (
+              <span className="rounded-lg bg-green-50 px-3 py-2 text-xs font-normal text-green-800 dark:bg-green-950/30 dark:text-green-300">
+                <strong>Your first 3 deals are completely free.</strong> After that:{" "}
+                {describeFee(selectedCategory)}. Nothing is charged during the pilot.
+              </span>
+            )}
+            {existingCategory != null && (
+              <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
+                Your category affects the fee you pay, so it can only be changed by support.
+              </span>
+            )}
+          </label>
+        )}
 
         <label className={labelClass}>
           Address
@@ -209,8 +271,6 @@ export default function OnboardPage() {
             className={inputClass}
           />
         </label>
-
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">Category: Mobile &amp; Electronics (fixed at MVP)</p>
 
         {error && <ErrorBanner>{error}</ErrorBanner>}
         <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>

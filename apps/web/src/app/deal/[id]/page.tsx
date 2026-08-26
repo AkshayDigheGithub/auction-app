@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
-import { LoadingScreen } from "@/components/ui";
+import { ErrorBanner, ghostButtonClass, inputClass, LoadingScreen, primaryButtonClass } from "@/components/ui";
 
 interface Deal {
   id: string;
@@ -13,6 +13,9 @@ interface Deal {
   finalPrice: string;
   qrStatus: "pending" | "scanned" | "confirmed";
   shop: { shopName: string; address: string };
+  /** True while the customer can still report that they didn't buy (AUC-54). */
+  canReport?: boolean;
+  reversal?: { status: string } | null;
 }
 
 export default function DealPage() {
@@ -21,6 +24,10 @@ export default function DealPage() {
 
   const [deal, setDeal] = useState<Deal | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!ready || !user || !id) return;
@@ -43,6 +50,22 @@ export default function DealPage() {
       socket.off("deal:completed", onCompleted);
     };
   }, [ready, user, id]);
+
+  async function submitReport() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/deals/${id}/report-no-purchase`, { reason });
+      const updated = await api.get<Deal>(`/deals/${id}`);
+      setDeal(updated);
+      setReporting(false);
+      setReason("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send your report");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!ready || !user || !deal) return <LoadingScreen label="Preparing your QR code…" />;
 
@@ -78,6 +101,51 @@ export default function DealPage() {
           <p className="max-w-[16rem] text-xs text-neutral-400 dark:text-neutral-500">
             The shop owner scans this to confirm your deal. This page will update automatically once scanned.
           </p>
+
+          {/* Reporting is what keeps lock-time billing fair to the shop: without
+              it, a shop pays for a customer who never turned up. */}
+          <div className="w-full max-w-sm border-t border-neutral-100 pt-5 dark:border-neutral-800">
+            {deal.reversal ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Thanks — you told us you didn&apos;t buy from this shop. Nothing more to do.
+              </p>
+            ) : deal.canReport ? (
+              reporting ? (
+                <div className="flex flex-col gap-2 text-left">
+                  <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    What happened?
+                    <input
+                      className={`${inputClass} mt-1.5`}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Shop was closed / price was different"
+                      autoFocus
+                    />
+                  </label>
+                  {error && <ErrorBanner>{error}</ErrorBanner>}
+                  <div className="flex gap-2">
+                    <button
+                      className={`${primaryButtonClass} flex-1`}
+                      onClick={submitReport}
+                      disabled={busy || reason.trim().length < 3}
+                    >
+                      {busy ? "Sending…" : "Send"}
+                    </button>
+                    <button className={ghostButtonClass} onClick={() => setReporting(false)} disabled={busy}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="text-sm text-neutral-500 underline underline-offset-2 dark:text-neutral-400"
+                  onClick={() => setReporting(true)}
+                >
+                  I didn&apos;t buy from this shop
+                </button>
+              )
+            ) : null}
+          </div>
         </>
       )}
     </main>

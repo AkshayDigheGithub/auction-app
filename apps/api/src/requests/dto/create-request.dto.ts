@@ -1,4 +1,13 @@
-import { IsLatitude, IsLongitude, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import {
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateRequestDto {
   @IsString()
@@ -27,4 +36,12 @@ export class CreateRequestDto {
   @Min(1)
   @Max(50)
   radiusKm?: number;
+
+  /**
+   * Optional by design (AUC-61) — a customer who just types "iPhone 15" must
+   * still be able to post. Category sharpens matching; it never gates demand.
+   */
+  @IsOptional()
+  @IsString()
+  productCategoryId?: string;
 }

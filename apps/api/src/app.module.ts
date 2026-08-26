@@ -9,9 +9,12 @@ import { ShopsModule } from './shops/shops.module';
 import { RequestsModule } from './requests/requests.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { BidsModule } from './bids/bids.module';
-import { PaymentsModule } from './payments/payments.module';
 import { DealsModule } from './deals/deals.module';
 import { AdminModule } from './admin/admin.module';
+import { PricingModule } from './pricing/pricing.module';
+import { WalletModule } from './wallet/wallet.module';
+import { AuditModule } from './audit/audit.module';
+import { CatalogModule } from './catalog/catalog.module';
 
 @Module({
   imports: [
@@ -25,7 +28,10 @@ import { AdminModule } from './admin/admin.module';
     RequestsModule,
     RealtimeModule,
     BidsModule,
-    PaymentsModule,
+    PricingModule,
+    WalletModule,
+    AuditModule,
+    CatalogModule,
     DealsModule,
     AdminModule,
   ],
