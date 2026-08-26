@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { AppHeader } from "@/components/app-header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,6 +23,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#ea580c",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -30,9 +32,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
+      <body className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
         <AuthProvider>
-          <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-sm sm:my-4 sm:min-h-0 sm:rounded-2xl">
+          <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-sm sm:my-4 sm:min-h-0 sm:rounded-2xl sm:border sm:border-neutral-100 dark:bg-neutral-900 dark:shadow-none dark:sm:border-neutral-800">
+            <AppHeader />
             {children}
           </div>
         </AuthProvider>

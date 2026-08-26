@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useRequireRole } from "@/lib/use-require-role";
+import { Badge, ErrorBanner, ghostButtonClass, inputClass, labelClass, LoadingScreen, primaryButtonClass, Spinner } from "@/components/ui";
 
 interface Shop {
   shopName: string;
@@ -79,66 +80,53 @@ export default function OnboardPage() {
     }
   }
 
-  if (!ready || !user) return null;
+  if (!ready || !user) return <LoadingScreen />;
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-6 py-8">
-      <header>
-        <h1 className="text-xl font-bold">Your shop profile</h1>
-        {verified && <p className="text-sm text-green-600">✅ Verified shop</p>}
+      <header className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Your shop profile</h1>
+        {verified && <Badge tone="green">✅ Verified</Badge>}
       </header>
 
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           Shop name
-          <input
-            required
-            value={shopName}
-            onChange={(e) => setShopName(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
-          />
+          <input required value={shopName} onChange={(e) => setShopName(e.target.value)} className={inputClass} />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           Address
-          <input
-            required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
-          />
+          <input required value={address} onChange={(e) => setAddress(e.target.value)} className={inputClass} />
         </label>
 
-        <div className="flex flex-col gap-1 text-sm">
+        <div className={labelClass}>
           Location
-          <button
-            type="button"
-            onClick={useMyLocation}
-            disabled={locating}
-            className="w-fit rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-600"
-          >
+          <button type="button" onClick={useMyLocation} disabled={locating} className={`${ghostButtonClass} w-fit`}>
             {locating ? "Locating…" : coords ? "📍 Pin set — tap to update" : "Use my current location"}
           </button>
+          {!coords && (
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">
+              Required so nearby customers&apos; requests can reach you.
+            </p>
+          )}
         </div>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           UPI ID (for commission settlement, optional for now)
           <input
             value={upiId}
             onChange={(e) => setUpiId(e.target.value)}
             placeholder="yourshop@upi"
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
+            className={inputClass}
           />
         </label>
 
-        <p className="text-xs text-neutral-400">Category: Mobile &amp; Electronics (fixed at MVP)</p>
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">Category: Mobile &amp; Electronics (fixed at MVP)</p>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-orange-600 px-4 py-3 font-medium text-white disabled:opacity-50"
-        >
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+          {loading && <Spinner className="h-4 w-4" />}
           {loading ? "Saving…" : "Save & find nearby requests"}
         </button>
       </form>

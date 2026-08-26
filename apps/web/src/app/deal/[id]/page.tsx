@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
+import { LoadingScreen } from "@/components/ui";
 
 interface Deal {
   id: string;
@@ -43,28 +44,40 @@ export default function DealPage() {
     };
   }, [ready, user, id]);
 
-  if (!ready || !user || !deal) return null;
+  if (!ready || !user || !deal) return <LoadingScreen label="Preparing your QR code…" />;
 
   return (
     <main className="flex flex-1 flex-col items-center gap-6 px-6 py-8 text-center">
       {deal.qrStatus === "confirmed" ? (
-        <div className="flex flex-col items-center gap-3">
-          <div className="text-5xl">✅</div>
-          <h1 className="text-xl font-bold">Deal confirmed!</h1>
-          <p className="text-sm text-neutral-500">The shop has scanned your code. Enjoy your purchase.</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-4xl dark:bg-green-950/50">
+            ✅
+          </div>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Deal confirmed!</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            The shop has scanned your code. Enjoy your purchase.
+          </p>
         </div>
       ) : (
         <>
-          <h1 className="text-xl font-bold">Show this at the shop</h1>
-          <p className="text-sm text-neutral-500">
-            {deal.shop.shopName} · {deal.shop.address}
-          </p>
+          <div>
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Show this at the shop</h1>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+              {deal.shop.shopName} · {deal.shop.address}
+            </p>
+          </div>
           {qrDataUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrDataUrl} alt="Deal QR code" className="h-64 w-64 rounded-xl border border-neutral-200" />
+            <div className="rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-700">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="Deal QR code" className="h-56 w-56" />
+            </div>
           )}
-          <p className="text-lg font-semibold">₹{Number(deal.finalPrice).toLocaleString("en-IN")}</p>
-          <p className="text-xs text-neutral-400">The shop owner scans this to confirm your deal.</p>
+          <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">
+            ₹{Number(deal.finalPrice).toLocaleString("en-IN")}
+          </p>
+          <p className="max-w-[16rem] text-xs text-neutral-400 dark:text-neutral-500">
+            The shop owner scans this to confirm your deal. This page will update automatically once scanned.
+          </p>
         </>
       )}
     </main>

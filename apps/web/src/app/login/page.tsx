@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth, type Role } from "@/lib/auth-context";
+import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
 
 const ROLE_LABEL: Record<string, string> = {
   customer: "Customer",
@@ -65,13 +67,13 @@ function LoginForm() {
   return (
     <main className="flex flex-1 flex-col justify-center gap-6 px-6 py-12">
       <div>
-        <p className="text-sm text-neutral-500">Signing in as</p>
-        <h1 className="text-xl font-bold">{ROLE_LABEL[role] ?? role}</h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Signing in as</p>
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">{ROLE_LABEL[role] ?? role}</h1>
       </div>
 
       {step === "phone" ? (
         <form onSubmit={requestOtp} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm">
+          <label className={labelClass}>
             Phone number
             <input
               type="tel"
@@ -79,26 +81,23 @@ function LoginForm() {
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="+919876543210"
-              className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
+              className={inputClass}
             />
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-xl bg-orange-600 px-4 py-3 font-medium text-white disabled:opacity-50"
-          >
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+          <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+            {loading && <Spinner className="h-4 w-4" />}
             {loading ? "Sending…" : "Send OTP"}
           </button>
         </form>
       ) : (
         <form onSubmit={verifyOtp} className="flex flex-col gap-4">
           {devCode && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <InfoBanner tone="amber">
               Dev mode — no SMS gateway configured. Your code is <strong>{devCode}</strong>.
-            </p>
+            </InfoBanner>
           )}
-          <label className="flex flex-col gap-1 text-sm">
+          <label className={labelClass}>
             Enter the 6-digit code
             <input
               type="text"
@@ -107,19 +106,34 @@ function LoginForm() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="123456"
-              className="rounded-lg border border-neutral-300 px-3 py-3 text-base tracking-widest"
+              className={`${inputClass} tracking-[0.4em] text-center`}
             />
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-xl bg-orange-600 px-4 py-3 font-medium text-white disabled:opacity-50"
-          >
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+          <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+            {loading && <Spinner className="h-4 w-4" />}
             {loading ? "Verifying…" : "Verify & continue"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStep("phone");
+              setCode("");
+              setError(null);
+            }}
+            className="text-center text-sm text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
+          >
+            Use a different number
           </button>
         </form>
       )}
+
+      <Link
+        href="/"
+        className="text-center text-xs text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
+      >
+        Not {ROLE_LABEL[role]?.toLowerCase() ?? "this role"}? Go back
+      </Link>
     </main>
   );
 }

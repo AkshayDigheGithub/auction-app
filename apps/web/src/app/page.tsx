@@ -20,30 +20,35 @@ export default function Home() {
   }, [ready, user, router]);
 
   return (
-    <main className="flex flex-1 flex-col justify-center gap-8 px-6 py-12">
+    <main className="flex flex-1 flex-col justify-center gap-10 px-6 py-12">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-orange-600">Nearby Bids</h1>
-        <p className="mt-2 text-sm text-neutral-500">
-          Post what you want to buy — nearby shops compete for your business.
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-600 text-2xl">
+          🛍️
+        </div>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">
+          Post it. Let shops bid.
+        </h1>
+        <p className="mx-auto mt-2 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+          Post what you want to buy and nearby shops compete for your business — best price wins.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <Link
           href="/login?role=customer"
-          className="rounded-xl bg-orange-600 px-4 py-4 text-center font-medium text-white active:bg-orange-700"
+          className="rounded-xl bg-orange-600 px-4 py-4 text-center font-medium text-white transition active:bg-orange-700"
         >
           I&apos;m a Customer
         </Link>
         <Link
           href="/login?role=shop_owner"
-          className="rounded-xl border border-orange-600 px-4 py-4 text-center font-medium text-orange-600 active:bg-orange-50"
+          className="rounded-xl border border-orange-600 px-4 py-4 text-center font-medium text-orange-600 transition active:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:active:bg-orange-950/40"
         >
           I&apos;m a Shop Owner
         </Link>
         <Link
           href="/login?role=admin"
-          className="px-4 py-2 text-center text-sm text-neutral-400 underline"
+          className="px-4 py-2 text-center text-sm text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
         >
           Admin sign in
         </Link>

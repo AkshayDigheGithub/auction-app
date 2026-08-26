@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
+import { EmptyState, InfoBanner, LoadingScreen, primaryButtonClass } from "@/components/ui";
 
 interface Shop {
   id: string;
@@ -24,8 +25,10 @@ export default function NearbyRequestsPage() {
   const { ready, user } = useRequireRole("shop_owner");
 
   const [shop, setShop] = useState<Shop | null>(null);
+  const [shopLoading, setShopLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [requests, setRequests] = useState<NearbyRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
   const [bidForms, setBidForms] = useState<Record<string, { price: string; note: string }>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -35,7 +38,8 @@ export default function NearbyRequestsPage() {
     api
       .get<Shop>("/shops/me")
       .then(setShop)
-      .catch(() => setNeedsOnboarding(true));
+      .catch(() => setNeedsOnboarding(true))
+      .finally(() => setShopLoading(false));
   }, [ready, user]);
 
   useEffect(() => {
@@ -44,7 +48,8 @@ export default function NearbyRequestsPage() {
     api
       .get<NearbyRequest[]>(`/requests/nearby?latitude=${shop.latitude}&longitude=${shop.longitude}`)
       .then(setRequests)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setRequestsLoading(false));
 
     const socket = getSocket();
     socket.emit("join-shop", shop.id);
@@ -82,13 +87,16 @@ export default function NearbyRequestsPage() {
     }
   }
 
-  if (!ready || !user) return null;
+  if (!ready || !user || shopLoading) return <LoadingScreen />;
 
   if (needsOnboarding) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-8 text-center">
-        <p className="text-sm text-neutral-500">Set up your shop profile to start seeing nearby requests.</p>
-        <Link href="/onboard" className="rounded-xl bg-orange-600 px-4 py-3 font-medium text-white">
+        <div className="text-3xl">🏬</div>
+        <p className="max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+          Set up your shop profile to start seeing nearby requests.
+        </p>
+        <Link href="/onboard" className={primaryButtonClass}>
           Complete shop profile
         </Link>
       </main>
@@ -98,55 +106,66 @@ export default function NearbyRequestsPage() {
   return (
     <main className="flex flex-1 flex-col gap-4 px-6 py-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Nearby requests</h1>
-        <Link href="/scan" className="text-sm text-orange-600 underline">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Nearby requests</h1>
+        <Link href="/scan" className="text-sm text-orange-600 underline underline-offset-2 dark:text-orange-400">
           Scan QR
         </Link>
       </header>
 
-      {message && <p className="text-sm text-neutral-600">{message}</p>}
-      {requests.length === 0 && <p className="text-sm text-neutral-500">No open requests near you right now.</p>}
+      {message && <InfoBanner tone="green">{message}</InfoBanner>}
 
-      <ul className="flex flex-col gap-3">
-        {requests.map((r) => (
-          <li key={r.id} className="rounded-lg border border-neutral-200 px-4 py-3">
-            <p className="font-medium">{r.product_name}</p>
-            <p className="text-xs text-neutral-500">
-              {r.area_text} · {(r.distance_meters / 1000).toFixed(1)} km away
-            </p>
-            {r.description && <p className="mt-1 text-sm text-neutral-600">{r.description}</p>}
+      {requestsLoading ? (
+        <LoadingScreen label="Looking for nearby requests…" />
+      ) : requests.length === 0 ? (
+        <EmptyState
+          icon="🔎"
+          title="No open requests near you right now"
+          hint="New requests posted nearby will appear here instantly."
+        />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {requests.map((r) => (
+            <li key={r.id} className="rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800">
+              <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.product_name}</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                {r.area_text} · {(r.distance_meters / 1000).toFixed(1)} km away
+              </p>
+              {r.description && <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{r.description}</p>}
 
-            <div className="mt-3 flex gap-2">
-              <input
-                type="number"
-                min={1}
-                placeholder="₹ price"
-                value={bidForms[r.id]?.price ?? ""}
-                onChange={(e) =>
-                  setBidForms((prev) => ({ ...prev, [r.id]: { ...prev[r.id], price: e.target.value } }))
-                }
-                className="w-24 rounded-lg border border-neutral-300 px-2 py-2 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Note (optional)"
-                value={bidForms[r.id]?.note ?? ""}
-                onChange={(e) =>
-                  setBidForms((prev) => ({ ...prev, [r.id]: { ...prev[r.id], note: e.target.value } }))
-                }
-                className="flex-1 rounded-lg border border-neutral-300 px-2 py-2 text-sm"
-              />
-              <button
-                onClick={() => submitBid(r.id)}
-                disabled={submitting === r.id}
-                className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Bid
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              <div className="mt-3 flex flex-col gap-2">
+                <input
+                  type="text"
+                  placeholder="Note for the customer (optional)"
+                  value={bidForms[r.id]?.note ?? ""}
+                  onChange={(e) =>
+                    setBidForms((prev) => ({ ...prev, [r.id]: { ...prev[r.id], note: e.target.value } }))
+                  }
+                  className="min-w-0 rounded-lg border border-neutral-300 bg-white px-2.5 py-2 text-sm text-neutral-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="₹ price"
+                    value={bidForms[r.id]?.price ?? ""}
+                    onChange={(e) =>
+                      setBidForms((prev) => ({ ...prev, [r.id]: { ...prev[r.id], price: e.target.value } }))
+                    }
+                    className="w-28 min-w-0 rounded-lg border border-neutral-300 bg-white px-2.5 py-2 text-sm text-neutral-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  />
+                  <button
+                    onClick={() => submitBid(r.id)}
+                    disabled={submitting === r.id || !bidForms[r.id]?.price}
+                    className="flex-1 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white transition active:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting === r.id ? "Submitting…" : "Submit bid"}
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

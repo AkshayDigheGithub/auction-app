@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useRequireRole } from "@/lib/use-require-role";
+import { LoadingScreen, Spinner } from "@/components/ui";
 
 interface ScanResult {
   status: "success" | "error";
@@ -60,21 +61,37 @@ export default function ScanPage() {
     };
   }, [ready, user]);
 
-  if (!ready || !user) return null;
+  if (!ready || !user) return <LoadingScreen />;
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-6 py-8">
-      <h1 className="text-xl font-bold">Scan customer&apos;s QR</h1>
+      <div>
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Scan customer&apos;s QR</h1>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+          Point the camera at the code shown on the customer&apos;s phone to confirm the deal.
+        </p>
+      </div>
 
-      <div id={READER_ID} className="w-full overflow-hidden rounded-xl" />
-      {!scanning && <p className="text-sm text-neutral-500">Starting camera…</p>}
+      <div
+        id={READER_ID}
+        className="w-full overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-800"
+      />
+      {!scanning && !result && (
+        <p className="flex items-center justify-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+          <Spinner className="h-4 w-4" /> Starting camera…
+        </p>
+      )}
 
       {result && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
-            result.status === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+            result.status === "success"
+              ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+              : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400"
           }`}
+          role="status"
         >
+          {result.status === "success" ? "✅ " : "⚠️ "}
           {result.message}
         </p>
       )}

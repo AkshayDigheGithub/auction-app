@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { useRequireRole } from "@/lib/use-require-role";
+import { ErrorBanner, ghostButtonClass, inputClass, labelClass, LoadingScreen, primaryButtonClass, Spinner } from "@/components/ui";
 
 interface CreatedRequest {
   id: string;
@@ -56,41 +57,41 @@ export default function NewRequestPage() {
     }
   }
 
-  if (!ready || !user) return null;
+  if (!ready || !user) return <LoadingScreen />;
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-6 py-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">What do you want to buy?</h1>
-        <Link href="/request/mine" className="text-sm text-orange-600 underline">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">What do you want to buy?</h1>
+        <Link href="/request/mine" className="text-sm text-orange-600 underline underline-offset-2 dark:text-orange-400">
           My requests
         </Link>
       </header>
 
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           Product
           <input
             required
             value={productName}
             onChange={(e) => setProductName(e.target.value)}
             placeholder="iPhone 15, 128GB"
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
+            className={inputClass}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           Details (optional)
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Sealed box, any colour"
-            className="rounded-lg border border-neutral-300 px-3 py-3 text-base"
+            className={inputClass}
             rows={2}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
+        <label className={labelClass}>
           Area
           <div className="flex gap-2">
             <input
@@ -98,30 +99,22 @@ export default function NewRequestPage() {
               value={areaText}
               onChange={(e) => setAreaText(e.target.value)}
               placeholder="Koramangala, Bengaluru"
-              className="flex-1 rounded-lg border border-neutral-300 px-3 py-3 text-base"
+              className={`flex-1 ${inputClass}`}
             />
-            <button
-              type="button"
-              onClick={useMyLocation}
-              disabled={locating}
-              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 text-sm text-neutral-600"
-            >
+            <button type="button" onClick={useMyLocation} disabled={locating} className={`${ghostButtonClass} whitespace-nowrap`}>
               {locating ? "Locating…" : coords ? "📍 Got it" : "Use my location"}
             </button>
           </div>
           {!coords && (
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">
               No location shared — we&apos;ll estimate it from the area text you typed.
             </p>
           )}
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-orange-600 px-4 py-3 font-medium text-white disabled:opacity-50"
-        >
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+          {loading && <Spinner className="h-4 w-4" />}
           {loading ? "Posting…" : "Post request"}
         </button>
       </form>

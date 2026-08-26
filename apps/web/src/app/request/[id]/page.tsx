@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
+import { EmptyState, ErrorBanner, InfoBanner, LoadingScreen, Spinner } from "@/components/ui";
 
 interface RequestDetail {
   id: string;
@@ -65,48 +66,66 @@ export default function RequestDetailPage() {
     }
   }
 
-  if (!ready || !user || !request) return null;
+  if (!ready || !user || !request) return <LoadingScreen />;
+
+  const lowestPrice = bids.length ? Math.min(...bids.map((b) => Number(b.price))) : null;
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-6 py-8">
       <header>
-        <h1 className="text-xl font-bold">{request.productName}</h1>
-        <p className="text-sm text-neutral-500">{request.areaText}</p>
-        {request.description && <p className="mt-1 text-sm text-neutral-600">{request.description}</p>}
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">{request.productName}</h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">{request.areaText}</p>
+        {request.description && <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{request.description}</p>}
       </header>
 
       {request.status !== "open" ? (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          This request is {request.status} — bidding is closed.
-        </p>
+        <InfoBanner tone="amber">This request is {request.status} — bidding is closed.</InfoBanner>
       ) : (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-neutral-500">
-            {bids.length === 0 ? "Waiting for bids…" : `${bids.length} bid${bids.length === 1 ? "" : "s"}`}
+          <h2 className="flex items-center gap-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">
+            {bids.length === 0 && <Spinner className="h-3.5 w-3.5" />}
+            {bids.length === 0 ? "Waiting for bids…" : `${bids.length} bid${bids.length === 1 ? "" : "s"} — lowest price first`}
           </h2>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <ul className="flex flex-col gap-2">
-            {bids.map((bid) => (
-              <li key={bid.id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3">
-                <div>
-                  <p className="font-medium">
-                    {bid.shop.shopName} {bid.shop.verified && <span title="Verified">✅</span>}
-                  </p>
-                  {bid.note && <p className="text-xs text-neutral-500">{bid.note}</p>}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold">₹{Number(bid.price).toLocaleString("en-IN")}</span>
-                  <button
-                    onClick={() => lockBid(bid.id)}
-                    disabled={locking !== null}
-                    className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-                  >
-                    {locking === bid.id ? "Locking…" : "Choose"}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+          {bids.length === 0 ? (
+            <EmptyState
+              icon="⏳"
+              title="No bids yet"
+              hint="Nearby shops are being notified. Bids will appear here live as they come in."
+            />
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {bids.map((bid) => (
+                <li
+                  key={bid.id}
+                  className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                    Number(bid.price) === lowestPrice
+                      ? "border-orange-300 bg-orange-50/60 dark:border-orange-800 dark:bg-orange-950/20"
+                      : "border-neutral-200 dark:border-neutral-800"
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {bid.shop.shopName} {bid.shop.verified && <span title="Verified shop">✅</span>}
+                    </p>
+                    {bid.note && <p className="text-xs text-neutral-500 dark:text-neutral-400">{bid.note}</p>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      ₹{Number(bid.price).toLocaleString("en-IN")}
+                    </span>
+                    <button
+                      onClick={() => lockBid(bid.id)}
+                      disabled={locking !== null}
+                      className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white transition active:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {locking === bid.id ? "Locking…" : "Choose"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
     </main>
