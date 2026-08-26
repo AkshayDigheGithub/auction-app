@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { RequestsService } from './requests.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -27,11 +35,13 @@ export class RequestsController {
   @Roles('shop_owner')
   @Get('nearby')
   nearby(
+    @CurrentUser() user: JwtPayload,
     @Query('latitude') latitude: string,
     @Query('longitude') longitude: string,
     @Query('radiusKm') radiusKm?: string,
   ) {
     return this.requestsService.findOpenNearby(
+      user.sub,
       Number(latitude),
       Number(longitude),
       radiusKm ? Number(radiusKm) : undefined,

@@ -19,6 +19,14 @@ export function AppHeader() {
       </Link>
       {user && (
         <div className="flex items-center gap-2 text-xs">
+          {user.role === "shop_owner" && (
+            <Link
+              href="/wallet"
+              className="rounded-full bg-neutral-100 px-2.5 py-1 font-medium text-neutral-600 transition hover:text-neutral-900 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100"
+            >
+              Account
+            </Link>
+          )}
           <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
             {ROLE_LABEL[user.role] ?? user.role}
           </span>

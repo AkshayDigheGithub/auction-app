@@ -1,6 +1,15 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeoService } from '../geo/geo.service';
+import type { ShopCategoryName } from '../pricing/pricing.service';
+import { isLiveBilling } from '../pricing/billing-mode';
+import { FREE_DEALS_PER_SHOP } from '../deals/billing.constants';
 import {
   GEOCODING_PROVIDER,
   type GeocodingProvider,
@@ -37,6 +46,20 @@ export class RequestsService {
       longitude = geocoded.longitude;
     }
 
+    // Which kinds of shop can serve this request (AUC-59). Null when the
+    // customer didn't pick a category, which matches every shop as before.
+    let matchCategories: ShopCategoryName[] | undefined;
+    if (dto.productCategoryId) {
+      const pc = await this.prisma.db.productCategory.findUnique({
+        where: { id: dto.productCategoryId },
+        select: { id: true, active: true, shopCategories: true },
+      });
+      if (!pc || !pc.active) {
+        throw new BadRequestException('That product category is not available');
+      }
+      matchCategories = pc.shopCategories;
+    }
+
     const request = await this.prisma.db.request.create({
       data: {
         customerUserId,
@@ -45,17 +68,40 @@ export class RequestsService {
         areaText: dto.areaText,
         latitude,
         longitude,
+        productCategoryId: dto.productCategoryId,
       },
     });
     await this.geo.setLocation('requests', request.id, latitude, longitude);
 
     const radiusKm = dto.radiusKm ?? DEFAULT_RADIUS_KM;
-    const nearbyShops = await this.geo.findShopsNearby(
+    const matched = await this.geo.findShopsNearby(
       latitude,
       longitude,
       radiusKm,
+      matchCategories,
     );
-    for (const shop of nearbyShops) {
+
+    // Balance gating only bites in live billing — in shadow mode nothing is
+    // charged, so nothing should be withheld (AUC-53).
+    const { eligible, excluded } = this.geo.partitionByEligibility(matched, {
+      enforceBalance: isLiveBilling(),
+      freeDealsPerShop: FREE_DEALS_PER_SHOP,
+    });
+
+    if (excluded.length) {
+      // Logged so admin can tell a supply problem ("nobody nearby") from a
+      // billing problem ("everybody nearby is out of balance") — these look
+      // identical to the customer but have opposite fixes.
+      const byReason = excluded.reduce<Record<string, number>>((acc, e) => {
+        acc[e.reason] = (acc[e.reason] ?? 0) + 1;
+        return acc;
+      }, {});
+      this.logger.warn(
+        `Request ${request.id}: ${eligible.length} shop(s) notified, ${excluded.length} excluded (${JSON.stringify(byReason)})`,
+      );
+    }
+
+    for (const shop of eligible) {
       this.gateway.notifyShopNewRequest(shop.id, request);
       // Fire-and-forget — a failed/slow push shouldn't hold up the response.
       this.push
@@ -87,12 +133,34 @@ export class RequestsService {
     });
   }
 
+  /**
+   * The shop's "requests near me" list, narrowed to categories it actually
+   * serves (AUC-59). Under the wallet model an irrelevant lead isn't just noise:
+   * it's a lead the shop could win and be charged for on a sale it was never
+   * going to make.
+   */
   async findOpenNearby(
+    ownerUserId: string,
     latitude: number,
     longitude: number,
     radiusKm = DEFAULT_RADIUS_KM,
   ) {
-    return this.geo.findOpenRequestsNearby(latitude, longitude, radiusKm);
+    const shop = await this.prisma.db.shop.findUnique({
+      where: { ownerUserId },
+      select: { category: true, secondaryCategories: true },
+    });
+    const categories = shop
+      ? ([
+          shop.category,
+          ...(shop.secondaryCategories ?? []),
+        ] as ShopCategoryName[])
+      : undefined;
+    return this.geo.findOpenRequestsNearby(
+      latitude,
+      longitude,
+      radiusKm,
+      categories,
+    );
   }
 
   async markLocked(requestId: string) {
