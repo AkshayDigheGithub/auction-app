@@ -1,0 +1,33 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { SharedJwtModule } from './common/shared-jwt.module';
+import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { GeoModule } from './geo/geo.module';
+import { ShopsModule } from './shops/shops.module';
+import { RequestsModule } from './requests/requests.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { BidsModule } from './bids/bids.module';
+import { PaymentsModule } from './payments/payments.module';
+import { DealsModule } from './deals/deals.module';
+import { AdminModule } from './admin/admin.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    SharedJwtModule,
+    PrismaModule,
+    HealthModule,
+    AuthModule,
+    GeoModule,
+    ShopsModule,
+    RequestsModule,
+    RealtimeModule,
+    BidsModule,
+    PaymentsModule,
+    DealsModule,
+    AdminModule,
+  ],
+})
+export class AppModule {}

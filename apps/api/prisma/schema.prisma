@@ -1,0 +1,144 @@
+// Prisma schema for the hyperlocal reverse-auction app.
+// See mvp-spec-hyperlocal-bid-app_1.md section 7 for the source schema this mirrors.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [postgis]
+}
+
+enum Role {
+  customer
+  shop_owner
+  admin
+}
+
+enum ShopCategory {
+  mobile_electronics
+}
+
+enum RequestStatus {
+  open
+  locked
+  completed
+  cancelled
+}
+
+enum BidStatus {
+  active
+  withdrawn
+  rejected
+  won
+}
+
+enum QrStatus {
+  pending
+  scanned
+  confirmed
+}
+
+enum CommissionStatus {
+  pending
+  paid
+}
+
+model User {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique @map("phone_number")
+  name        String?
+  role        Role
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  shop     Shop?
+  requests Request[]
+  deals    Deal[]
+
+  @@map("users")
+}
+
+model Shop {
+  id           String       @id @default(cuid())
+  ownerUserId  String       @unique @map("owner_user_id")
+  owner        User         @relation(fields: [ownerUserId], references: [id])
+  shopName     String       @map("shop_name")
+  address      String
+  latitude     Float
+  longitude    Float
+  location     Unsupported("geography(Point, 4326)")?
+  category     ShopCategory @default(mobile_electronics)
+  upiId        String?      @map("upi_id")
+  verified     Boolean      @default(false)
+  photoUrl     String?      @map("photo_url")
+  gstNumber    String?      @map("gst_number")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  bids Bid[]
+  deals Deal[]
+
+  @@index([latitude, longitude])
+  @@map("shops")
+}
+
+model Request {
+  id              String        @id @default(cuid())
+  customerUserId  String        @map("customer_user_id")
+  customer        User          @relation(fields: [customerUserId], references: [id])
+  productName     String        @map("product_name")
+  description     String?
+  areaText        String        @map("area_text")
+  latitude        Float
+  longitude       Float
+  location        Unsupported("geography(Point, 4326)")?
+  status          RequestStatus @default(open)
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  bids Bid[]
+  deal Deal?
+
+  @@index([latitude, longitude])
+  @@map("requests")
+}
+
+model Bid {
+  id        String    @id @default(cuid())
+  requestId String    @map("request_id")
+  request   Request   @relation(fields: [requestId], references: [id])
+  shopId    String    @map("shop_id")
+  shop      Shop      @relation(fields: [shopId], references: [id])
+  price     Decimal   @db.Decimal(10, 2)
+  note      String?
+  status    BidStatus @default(active)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  deal Deal?
+
+  @@index([requestId])
+  @@index([shopId])
+  @@map("bids")
+}
+
+model Deal {
+  id                String            @id @default(cuid())
+  requestId         String            @unique @map("request_id")
+  request           Request           @relation(fields: [requestId], references: [id])
+  bidId             String            @unique @map("bid_id")
+  bid               Bid               @relation(fields: [bidId], references: [id])
+  customerUserId    String            @map("customer_user_id")
+  customer          User              @relation(fields: [customerUserId], references: [id])
+  shopId            String            @map("shop_id")
+  shop              Shop              @relation(fields: [shopId], references: [id])
+  finalPrice        Decimal           @db.Decimal(10, 2) @map("final_price")
+  qrToken           String            @unique @map("qr_token")
+  qrStatus          QrStatus          @default(pending) @map("qr_status")
+  commissionAmount  Decimal?          @db.Decimal(10, 2) @map("commission_amount")
+  commissionStatus  CommissionStatus  @default(pending) @map("commission_status")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  completedAt       DateTime?         @map("completed_at")
+
+  @@map("deals")
+}
