@@ -79,9 +79,23 @@ model Shop {
 
   bids Bid[]
   deals Deal[]
+  pushSubscriptions PushSubscription[]
 
   @@index([latitude, longitude])
   @@map("shops")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  shopId    String   @map("shop_id")
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([shopId])
+  @@map("push_subscriptions")
 }
 
 model Request {

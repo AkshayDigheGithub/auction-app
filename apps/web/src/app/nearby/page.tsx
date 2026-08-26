@@ -5,7 +5,8 @@ import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
-import { EmptyState, InfoBanner, LoadingScreen, primaryButtonClass } from "@/components/ui";
+import { getExistingSubscription, PUSH_ENABLED, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
+import { EmptyState, ghostButtonClass, InfoBanner, LoadingScreen, primaryButtonClass } from "@/components/ui";
 
 interface Shop {
   id: string;
@@ -32,6 +33,8 @@ export default function NearbyRequestsPage() {
   const [bidForms, setBidForms] = useState<Record<string, { price: string; note: string }>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pushSubscribed, setPushSubscribed] = useState<boolean | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -41,6 +44,42 @@ export default function NearbyRequestsPage() {
       .catch(() => setNeedsOnboarding(true))
       .finally(() => setShopLoading(false));
   }, [ready, user]);
+
+  useEffect(() => {
+    if (!shop || !PUSH_ENABLED) return;
+    getExistingSubscription()
+      .then((sub) => setPushSubscribed(!!sub))
+      .catch(() => setPushSubscribed(false));
+  }, [shop]);
+
+  async function enablePush() {
+    setPushBusy(true);
+    setMessage(null);
+    try {
+      const sub = await subscribeToPush();
+      const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+      await api.post("/shops/me/push-subscription", { endpoint, keys });
+      setPushSubscribed(true);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not enable notifications");
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function disablePush() {
+    setPushBusy(true);
+    try {
+      const sub = await getExistingSubscription();
+      if (sub) {
+        await api.delete("/shops/me/push-subscription", { endpoint: sub.endpoint });
+        await unsubscribeFromPush(sub);
+      }
+      setPushSubscribed(false);
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!shop) return;
@@ -111,6 +150,25 @@ export default function NearbyRequestsPage() {
           Scan QR
         </Link>
       </header>
+
+      {PUSH_ENABLED && pushSubscribed === false && (
+        <InfoBanner tone="orange">
+          <span className="flex items-center justify-between gap-3">
+            🔔 Get notified about new requests even when the app is closed.
+            <button onClick={enablePush} disabled={pushBusy} className={`${ghostButtonClass} whitespace-nowrap`}>
+              {pushBusy ? "Enabling…" : "Enable"}
+            </button>
+          </span>
+        </InfoBanner>
+      )}
+      {PUSH_ENABLED && pushSubscribed === true && (
+        <span className="flex w-fit items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
+          🔔 Notifications on
+          <button onClick={disablePush} disabled={pushBusy} className="underline decoration-dotted underline-offset-2">
+            Turn off
+          </button>
+        </span>
+      )}
 
       {message && <InfoBanner tone="green">{message}</InfoBanner>}
 
