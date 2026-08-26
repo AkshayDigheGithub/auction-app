@@ -37,12 +37,10 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# dotenv environment variable files — catch every .env* variant, then
+# re-allow the checked-in template.
+.env*
+!.env.example
 
 # tsbuildinfo
 *.tsbuildinfo

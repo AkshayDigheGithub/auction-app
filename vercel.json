@@ -3,7 +3,6 @@
   "build": {
     "env": {
       "NEXT_PUBLIC_API_URL": "https://auction-app-api-production.up.railway.app/api",
-      "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCeegr47KuuFjXOH1-QxhbsPMoXG_AtyBE",
       "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BJJ4wnFgO1RyFIR2KOGB1hsuuSlKW96bdjmuofQrG-rD8idH3erhjFUSwdqXJBPGz74_I5cgnzlBp1zZYJAEbk0"
     }
   }
