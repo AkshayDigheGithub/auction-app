@@ -87,12 +87,18 @@ export class DealsService {
     }
     if (deal.qrStatus === 'confirmed') throw new BadRequestException('Deal already confirmed');
 
-    const updated = await this.prisma.db.deal.update({
+    await this.prisma.db.deal.update({
       where: { id: dealId },
       data: { qrStatus: 'confirmed', completedAt: new Date() },
     });
     await this.requestsService.markCompleted(deal.requestId);
-    await this.paymentsService.triggerCommission(deal.id, deal.shopId, Number(deal.finalPrice) * COMMISSION_RATE);
+    // triggerCommission's update includes qrStatus/completedAt from the write above,
+    // so this is the fully up-to-date deal — return this one, not the pre-commission snapshot.
+    const updated = await this.paymentsService.triggerCommission(
+      deal.id,
+      deal.shopId,
+      Number(deal.finalPrice) * COMMISSION_RATE,
+    );
 
     this.gateway.broadcastDealCompleted(deal.requestId, updated);
     return updated;
