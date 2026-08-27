@@ -88,6 +88,18 @@ export class RequestsService {
       freeDealsPerShop: FREE_DEALS_PER_SHOP,
     });
 
+    // Persist the match outcome so admin can find these later (AUC-59). A
+    // request that reaches nobody is invisible from the outside — the customer
+    // just sees a bid list that never fills — so it has to be recorded at post
+    // time rather than inferred afterwards.
+    await this.prisma.db.request.update({
+      where: { id: request.id },
+      data: {
+        matchedShopCount: matched.length,
+        notifiedShopCount: eligible.length,
+      },
+    });
+
     if (excluded.length) {
       // Logged so admin can tell a supply problem ("nobody nearby") from a
       // billing problem ("everybody nearby is out of balance") — these look
@@ -98,6 +110,20 @@ export class RequestsService {
       }, {});
       this.logger.warn(
         `Request ${request.id}: ${eligible.length} shop(s) notified, ${excluded.length} excluded (${JSON.stringify(byReason)})`,
+      );
+    }
+
+    if (eligible.length === 0) {
+      // Error, not warn: nobody was told about this request, so it cannot be
+      // bid on. Silence here is what AUC-59 set out to remove.
+      const cause =
+        matched.length === 0
+          ? dto.productCategoryId
+            ? 'no shop in radius serves this category'
+            : 'no shop in radius'
+          : `all ${matched.length} matched shop(s) excluded`;
+      this.logger.error(
+        `Request ${request.id} ("${dto.productName}" near ${dto.areaText}, ${radiusKm}km) reached no shops — ${cause}`,
       );
     }
 

@@ -18,8 +18,8 @@ interface FakeShop {
 
 function makeFakePrisma(categories: FakeCategory[], shops: FakeShop[]) {
   const client = {
-    productCategory: { findMany: jest.fn(async () => categories) },
-    shop: { findMany: jest.fn(async () => shops) },
+    productCategory: { findMany: jest.fn().mockResolvedValue(categories) },
+    shop: { findMany: jest.fn().mockResolvedValue(shops) },
   };
   return { db: client } as unknown as PrismaService;
 }
@@ -50,8 +50,16 @@ describe('CatalogService.listAllWithUsage', () => {
   it('counts a shop once even when it serves several of the mapped categories', async () => {
     const shops: FakeShop[] = [
       // Serves both categories Tablets maps to — still one shop.
-      { id: 'shop_both', category: 'mobile_electronics', secondaryCategories: ['computers'] },
-      { id: 'shop_mobile', category: 'mobile_electronics', secondaryCategories: [] },
+      {
+        id: 'shop_both',
+        category: 'mobile_electronics',
+        secondaryCategories: ['computers'],
+      },
+      {
+        id: 'shop_mobile',
+        category: 'mobile_electronics',
+        secondaryCategories: [],
+      },
       { id: 'shop_computers', category: 'computers', secondaryCategories: [] },
     ];
     const service = new CatalogService(makeFakePrisma(categories, shops));
@@ -63,7 +71,11 @@ describe('CatalogService.listAllWithUsage', () => {
 
   it('counts shops that serve the category only as a secondary', async () => {
     const shops: FakeShop[] = [
-      { id: 'shop_electronics', category: 'mobile_electronics', secondaryCategories: ['furniture'] },
+      {
+        id: 'shop_electronics',
+        category: 'mobile_electronics',
+        secondaryCategories: ['furniture'],
+      },
     ];
     const service = new CatalogService(makeFakePrisma(categories, shops));
 
@@ -75,7 +87,9 @@ describe('CatalogService.listAllWithUsage', () => {
   });
 
   it('reports zero for a category no shop serves, and keeps the request counts', async () => {
-    const shops: FakeShop[] = [{ id: 'shop_grocery', category: 'grocery', secondaryCategories: [] }];
+    const shops: FakeShop[] = [
+      { id: 'shop_grocery', category: 'grocery', secondaryCategories: [] },
+    ];
     const service = new CatalogService(makeFakePrisma(categories, shops));
 
     const rows = await service.listAllWithUsage();

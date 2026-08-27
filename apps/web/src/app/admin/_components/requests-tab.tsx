@@ -15,6 +15,9 @@ interface RequestRow {
   deal: { id: string } | null;
   customer: { phoneNumber: string };
   productCategory: { id: string; name: string } | null;
+  /** Null on requests posted before reach was recorded (AUC-59). */
+  matchedShopCount: number | null;
+  notifiedShopCount: number | null;
 }
 
 const TAKE = 25;
@@ -29,6 +32,7 @@ const STATUS_TONE: Record<string, "neutral" | "blue" | "green" | "amber"> = {
 export function RequestsTab() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [reach, setReach] = useState("");
   const [skip, setSkip] = useState(0);
   const [data, setData] = useState<{ rows: RequestRow[]; total: number } | null>(null);
 
@@ -36,8 +40,9 @@ export function RequestsTab() {
     const p: Record<string, string> = { take: String(TAKE), skip: String(skip) };
     if (q) p.q = q;
     if (status) p.status = status;
+    if (reach === "none") p.reachedNobody = "true";
     return p;
-  }, [q, status, skip]);
+  }, [q, status, reach, skip]);
 
   const load = useCallback(() => {
     const qs = new URLSearchParams(params()).toString();
@@ -83,6 +88,12 @@ export function RequestsTab() {
       cell: (r) => <span className="tabular-nums text-neutral-900 dark:text-neutral-100">{r.bids.length}</span>,
     },
     {
+      key: "reach",
+      header: "Reached",
+      align: "right",
+      cell: (r) => <ReachCell row={r} />,
+    },
+    {
       key: "status",
       header: "Status",
       mobile: "trailing",
@@ -115,6 +126,15 @@ export function RequestsTab() {
             { value: "cancelled", label: "Cancelled" },
           ]}
         />
+        <Select
+          value={reach}
+          onChange={(v) => {
+            setReach(v);
+            setSkip(0);
+          }}
+          allLabel="Any reach"
+          options={[{ value: "none", label: "Reached nobody" }]}
+        />
         <ExportButton resource="requests" params={params()} />
       </FilterBar>
 
@@ -124,10 +144,47 @@ export function RequestsTab() {
         <EmptyState icon="🗒️" title="No requests match" />
       ) : (
         <>
-          <RecordList columns={columns} rows={data.rows} rowKey={(r) => r.id} />
+          <RecordList
+            columns={columns}
+            rows={data.rows}
+            rowKey={(r) => r.id}
+            rowClassName={(r) => (r.notifiedShopCount === 0 ? "bg-amber-50/60 dark:bg-amber-950/20" : "")}
+          />
           <Pager skip={skip} take={TAKE} total={data.total} onChange={setSkip} />
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * How many shops actually heard about this request.
+ *
+ * Zero reach is the case worth spotting: the customer sees a bid list that
+ * never fills and has no way to tell why, so admin is the only place it can
+ * surface. The two causes need opposite fixes, so they are named rather than
+ * both shown as "0" (AUC-59).
+ */
+function ReachCell({ row }: { row: RequestRow }) {
+  if (row.notifiedShopCount == null) {
+    return <span className="text-neutral-300 dark:text-neutral-600" title="Posted before reach was recorded">—</span>;
+  }
+  if (row.notifiedShopCount > 0) {
+    return (
+      <span className="tabular-nums text-neutral-900 dark:text-neutral-100">{row.notifiedShopCount}</span>
+    );
+  }
+  const supplyProblem = !row.matchedShopCount;
+  return (
+    <span
+      className="whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-400"
+      title={
+        supplyProblem
+          ? "No shop in radius serves this category — a supply or category-mapping problem."
+          : `${row.matchedShopCount} shop(s) matched but were all excluded — suspended or out of balance.`
+      }
+    >
+      {supplyProblem ? "nobody nearby" : `0 of ${row.matchedShopCount}`}
+    </span>
   );
 }

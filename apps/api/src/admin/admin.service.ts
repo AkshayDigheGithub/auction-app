@@ -64,6 +64,8 @@ export class AdminService {
       q?: string;
       status?: string;
       productCategoryId?: string;
+      /** Only requests that reached no shop at all (AUC-59). */
+      reachedNobody?: boolean;
       from?: string;
       to?: string;
     } = {},
@@ -73,6 +75,9 @@ export class AdminService {
       ...(opts.productCategoryId
         ? { productCategoryId: opts.productCategoryId }
         : {}),
+      // Rows predating the counts are null, not 0 — an unknown reach is not a
+      // zero reach, so they stay out of this filter rather than inflating it.
+      ...(opts.reachedNobody ? { notifiedShopCount: 0 } : {}),
       ...(opts.q
         ? { productName: { contains: opts.q, mode: 'insensitive' as const } }
         : {}),
