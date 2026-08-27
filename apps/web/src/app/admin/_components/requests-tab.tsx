@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge, EmptyState } from "@/components/ui";
-import { DataTable, ExportButton, Pager, SearchInput, Select, Td, Th } from "./shared";
+import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, Select } from "./shared";
 
 interface RequestRow {
   id: string;
@@ -52,13 +52,61 @@ export function RequestsTab() {
     return () => clearTimeout(t);
   }, [load, q]);
 
+  const columns: Column<RequestRow>[] = [
+    {
+      key: "product",
+      header: "Product",
+      mobile: "title",
+      cell: (r) => (
+        <>
+          <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.productName}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">{r.customer.phoneNumber}</p>
+        </>
+      ),
+    },
+    {
+      key: "area",
+      header: "Area",
+      cell: (r) => (
+        <span className="line-clamp-2 text-neutral-600 dark:text-neutral-300 md:line-clamp-1">{r.areaText}</span>
+      ),
+    },
+    {
+      key: "category",
+      header: "Category",
+      cell: (r) => <span className="text-neutral-500 dark:text-neutral-400">{r.productCategory?.name ?? "—"}</span>,
+    },
+    {
+      key: "bids",
+      header: "Bids",
+      align: "right",
+      cell: (r) => <span className="tabular-nums text-neutral-900 dark:text-neutral-100">{r.bids.length}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      mobile: "trailing",
+      cell: (r) => <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>,
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-2 sm:grid-cols-3">
-        <SearchInput value={q} onChange={(v) => { setQ(v); setSkip(0); }} placeholder="Search product…" />
+      <FilterBar>
+        <SearchInput
+          value={q}
+          onChange={(v) => {
+            setQ(v);
+            setSkip(0);
+          }}
+          placeholder="Search product…"
+        />
         <Select
           value={status}
-          onChange={(v) => { setStatus(v); setSkip(0); }}
+          onChange={(v) => {
+            setStatus(v);
+            setSkip(0);
+          }}
           allLabel="All statuses"
           options={[
             { value: "open", label: "Open" },
@@ -68,7 +116,7 @@ export function RequestsTab() {
           ]}
         />
         <ExportButton resource="requests" params={params()} />
-      </div>
+      </FilterBar>
 
       {!data ? (
         <p className="text-sm text-neutral-400 dark:text-neutral-500">Loading…</p>
@@ -76,32 +124,7 @@ export function RequestsTab() {
         <EmptyState icon="🗒️" title="No requests match" />
       ) : (
         <>
-          <DataTable
-            head={
-              <>
-                <Th>Product</Th>
-                <Th>Area</Th>
-                <Th>Category</Th>
-                <Th align="right">Bids</Th>
-                <Th>Status</Th>
-              </>
-            }
-          >
-            {data.rows.map((r) => (
-              <tr key={r.id}>
-                <Td>
-                  <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.productName}</p>
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500">{r.customer.phoneNumber}</p>
-                </Td>
-                <Td className="max-w-xs truncate text-neutral-600 dark:text-neutral-300">{r.areaText}</Td>
-                <Td className="text-neutral-500 dark:text-neutral-400">{r.productCategory?.name ?? "—"}</Td>
-                <Td align="right" className="tabular-nums">{r.bids.length}</Td>
-                <Td>
-                  <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>
-                </Td>
-              </tr>
-            ))}
-          </DataTable>
+          <RecordList columns={columns} rows={data.rows} rowKey={(r) => r.id} />
           <Pager skip={skip} take={TAKE} total={data.total} onChange={setSkip} />
         </>
       )}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { categoryLabel, formatBps, formatPaise } from "@/lib/money";
 import { ErrorBanner, ghostButtonClass, InfoBanner, inputClass, primaryButtonClass } from "@/components/ui";
-import { DataTable, SectionTitle, Td, Th } from "./shared";
+import { Column, RecordList, SectionTitle } from "./shared";
 
 interface Rate {
   category: string;
@@ -31,6 +31,63 @@ export function RatesTab() {
 
   if (!rates) return <p className="text-sm text-neutral-400 dark:text-neutral-500">Loading…</p>;
 
+  const columns: Column<Rate>[] = [
+    {
+      key: "category",
+      header: "Category",
+      mobile: "title",
+      cell: (r) => <span className="font-medium text-neutral-900 dark:text-neutral-100">{categoryLabel(r.category)}</span>,
+    },
+    {
+      key: "rate",
+      header: "Rate",
+      align: "right",
+      mobile: "trailing",
+      cell: (r) => (
+        <span className="tabular-nums font-semibold text-neutral-900 dark:text-neutral-100">
+          {r.flatFeePaise != null ? `${formatPaise(r.flatFeePaise)} flat` : formatBps(r.rateBps)}
+        </span>
+      ),
+    },
+    {
+      key: "cap",
+      header: "Cap",
+      align: "right",
+      cell: (r) => (
+        <span className="tabular-nums text-neutral-500 dark:text-neutral-400">
+          {r.capPaise == null ? "—" : formatPaise(r.capPaise)}
+        </span>
+      ),
+    },
+    {
+      key: "floor",
+      header: "Floor",
+      align: "right",
+      cell: (r) => (
+        <span className="tabular-nums text-neutral-500 dark:text-neutral-400">{formatPaise(r.floorPaise)}</span>
+      ),
+    },
+    {
+      key: "preview",
+      header: "Fee on ₹5k / ₹30k / ₹70k",
+      cell: (r) => (
+        <span className="tabular-nums text-neutral-500 dark:text-neutral-400">
+          {r.preview.map((p) => formatPaise(p.feePaise)).join(" / ")}
+        </span>
+      ),
+    },
+    {
+      key: "action",
+      header: "",
+      align: "right",
+      cell: (r) => (
+        <button className={ghostButtonClass} onClick={() => setEditing(editing === r.category ? null : r.category)}>
+          {editing === r.category ? "Cancel" : "Edit"}
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <InfoBanner>
@@ -39,41 +96,12 @@ export function RatesTab() {
       </InfoBanner>
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      <DataTable
-        head={
-          <>
-            <Th>Category</Th>
-            <Th align="right">Rate</Th>
-            <Th align="right">Cap</Th>
-            <Th align="right">Floor</Th>
-            <Th>Fee on ₹5k / ₹30k / ₹70k</Th>
-            <Th> </Th>
-          </>
-        }
-      >
-        {rates.map((r) => (
-          <tr key={r.category} className={r.active ? "" : "opacity-50"}>
-            <Td className="font-medium text-neutral-900 dark:text-neutral-100">{categoryLabel(r.category)}</Td>
-            <Td align="right" className="tabular-nums">
-              {r.flatFeePaise != null ? `${formatPaise(r.flatFeePaise)} flat` : formatBps(r.rateBps)}
-            </Td>
-            <Td align="right" className="tabular-nums text-neutral-500 dark:text-neutral-400">
-              {r.capPaise == null ? "—" : formatPaise(r.capPaise)}
-            </Td>
-            <Td align="right" className="tabular-nums text-neutral-500 dark:text-neutral-400">
-              {formatPaise(r.floorPaise)}
-            </Td>
-            <Td className="text-neutral-500 dark:text-neutral-400">
-              {r.preview.map((p) => formatPaise(p.feePaise)).join(" / ")}
-            </Td>
-            <Td align="right">
-              <button className={ghostButtonClass} onClick={() => setEditing(editing === r.category ? null : r.category)}>
-                {editing === r.category ? "Cancel" : "Edit"}
-              </button>
-            </Td>
-          </tr>
-        ))}
-      </DataTable>
+      <RecordList
+        columns={columns}
+        rows={rates}
+        rowKey={(r) => r.category}
+        rowClassName={(r) => (r.active ? "" : "opacity-50")}
+      />
 
       {editing && (
         <RateEditor
@@ -161,7 +189,7 @@ function RateEditor({
 
       <div className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-900">
         <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Preview</p>
-        <ul className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
+        <ul className="mt-1 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-5">
           {samples.map((s) => (
             <li key={s.price} className="text-neutral-700 dark:text-neutral-300">
               {formatPaise(s.price)} deal → <strong className="tabular-nums">{formatPaise(s.fee)}</strong>
@@ -177,7 +205,7 @@ function RateEditor({
         </p>
       )}
 
-      <button className={`${primaryButtonClass} mt-3`} onClick={save} disabled={busy || !Number.isFinite(bps)}>
+      <button className={`${primaryButtonClass} mt-3 w-full sm:w-auto`} onClick={save} disabled={busy || !Number.isFinite(bps)}>
         {busy ? "Saving…" : "Save rate"}
       </button>
     </div>

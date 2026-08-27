@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { EmptyState, InfoBanner } from "@/components/ui";
-import { DataTable, ExportButton, Pager, Select, Td, Th } from "./shared";
+import { Column, ExportButton, FilterBar, Pager, RecordList, Select } from "./shared";
 
 interface AuditRow {
   id: string;
@@ -49,26 +49,71 @@ export function AuditTab() {
 
   useEffect(load, [load]);
 
+  const columns: Column<AuditRow>[] = [
+    {
+      key: "action",
+      header: "Action",
+      mobile: "title",
+      cell: (r) => <span className="font-medium text-neutral-900 dark:text-neutral-100">{r.action}</span>,
+    },
+    {
+      key: "when",
+      header: "When",
+      mobile: "meta",
+      cell: (r) => (
+        <span className="text-neutral-500 dark:text-neutral-400">
+          {new Date(r.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+        </span>
+      ),
+    },
+    {
+      key: "target",
+      header: "Target",
+      cell: (r) => (
+        <span className="text-neutral-500 dark:text-neutral-400">
+          {r.targetType}:{r.targetId.slice(0, 10)}
+        </span>
+      ),
+    },
+    {
+      key: "change",
+      header: "Change",
+      cell: (r) => (
+        <span className="line-clamp-2 max-w-md text-xs text-neutral-500 dark:text-neutral-400">
+          {summarise(r.before, r.after)}
+        </span>
+      ),
+    },
+    {
+      key: "admin",
+      header: "Admin",
+      cell: (r) => (
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">
+          {r.actorUserId.slice(0, 10)}
+          {r.ip ? ` · ${r.ip}` : ""}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <InfoBanner tone="neutral">
         Append-only. Entries cannot be edited or deleted from here — that is the point of having them.
       </InfoBanner>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="sm:max-w-xs sm:flex-1">
-          <Select
-            value={action}
-            onChange={(v) => {
-              setAction(v);
-              setSkip(0);
-            }}
-            allLabel="All actions"
-            options={ACTIONS.map((a) => ({ value: a, label: a }))}
-          />
-        </div>
+      <FilterBar>
+        <Select
+          value={action}
+          onChange={(v) => {
+            setAction(v);
+            setSkip(0);
+          }}
+          allLabel="All actions"
+          options={ACTIONS.map((a) => ({ value: a, label: a }))}
+        />
         <ExportButton resource="audit" params={action ? { action } : {}} />
-      </div>
+      </FilterBar>
 
       {!data ? (
         <p className="text-sm text-neutral-400 dark:text-neutral-500">Loading…</p>
@@ -76,36 +121,7 @@ export function AuditTab() {
         <EmptyState icon="🗂️" title="No admin actions recorded yet" />
       ) : (
         <>
-          <DataTable
-            head={
-              <>
-                <Th>When</Th>
-                <Th>Action</Th>
-                <Th>Target</Th>
-                <Th>Change</Th>
-                <Th>Admin</Th>
-              </>
-            }
-          >
-            {data.rows.map((r) => (
-              <tr key={r.id}>
-                <Td className="text-neutral-500 dark:text-neutral-400">
-                  {new Date(r.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                </Td>
-                <Td className="font-medium text-neutral-900 dark:text-neutral-100">{r.action}</Td>
-                <Td className="text-neutral-500 dark:text-neutral-400">
-                  {r.targetType}:{r.targetId.slice(0, 10)}
-                </Td>
-                <Td className="max-w-md truncate text-xs text-neutral-500 dark:text-neutral-400">
-                  {summarise(r.before, r.after)}
-                </Td>
-                <Td className="text-xs text-neutral-400 dark:text-neutral-500">
-                  {r.actorUserId.slice(0, 10)}
-                  {r.ip ? ` · ${r.ip}` : ""}
-                </Td>
-              </tr>
-            ))}
-          </DataTable>
+          <RecordList columns={columns} rows={data.rows} rowKey={(r) => r.id} />
           <Pager skip={skip} take={TAKE} total={data.total} onChange={setSkip} />
         </>
       )}
