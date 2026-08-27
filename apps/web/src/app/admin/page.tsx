@@ -12,6 +12,7 @@ import { RatesTab } from "./_components/rates-tab";
 import { ReversalsTab } from "./_components/reversals-tab";
 import { QualityTab } from "./_components/quality-tab";
 import { AuditTab } from "./_components/audit-tab";
+import { CategoriesTab } from "./_components/categories-tab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -19,6 +20,7 @@ const TABS = [
   { id: "deals", label: "Deals" },
   { id: "requests", label: "Requests" },
   { id: "rates", label: "Rates" },
+  { id: "categories", label: "Categories" },
   { id: "reports", label: "Reports" },
   { id: "quality", label: "Quality" },
   { id: "audit", label: "Audit" },
@@ -101,6 +103,7 @@ export default function AdminPage() {
       {tab === "deals" && <DealsTab />}
       {tab === "requests" && <RequestsTab />}
       {tab === "rates" && <RatesTab />}
+      {tab === "categories" && <CategoriesTab />}
       {tab === "reports" && <ReversalsTab />}
       {tab === "quality" && <QualityTab />}
       {tab === "audit" && <AuditTab />}

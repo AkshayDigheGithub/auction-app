@@ -36,13 +36,45 @@ export class CatalogService {
     }));
   }
 
-  /** Admin view: everything, with usage counts so nothing is changed blind. */
+  /**
+   * Admin view: everything, with usage counts so nothing is changed blind.
+   *
+   * `shopCount` is how many shops this category can actually reach — a shop
+   * counts once whether it serves one of the mapped shop categories as primary
+   * or secondary. It is assembled from a single pass over the shops table
+   * rather than a query per category: at pilot scale that is a few hundred
+   * rows, and the array-overlap predicate it replaces is awkward to express
+   * per-row through Prisma.
+   */
   async listAllWithUsage() {
-    const rows = await this.prisma.db.productCategory.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { requests: true, children: true } } },
+    const [rows, shops] = await Promise.all([
+      this.prisma.db.productCategory.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        include: { _count: { select: { requests: true, children: true } } },
+      }),
+      this.prisma.db.shop.findMany({
+        select: { id: true, category: true, secondaryCategories: true },
+      }),
+    ]);
+
+    const shopsByCategory = new Map<ShopCategoryName, Set<string>>();
+    for (const shop of shops) {
+      for (const category of [shop.category, ...shop.secondaryCategories]) {
+        const set = shopsByCategory.get(category) ?? new Set<string>();
+        set.add(shop.id);
+        shopsByCategory.set(category, set);
+      }
+    }
+
+    return rows.map((row) => {
+      // Union rather than a sum: a shop serving two of the mapped shop
+      // categories is still one shop that would see these requests.
+      const matched = new Set<string>();
+      for (const category of row.shopCategories) {
+        for (const id of shopsByCategory.get(category) ?? []) matched.add(id);
+      }
+      return { ...row, shopCount: matched.size };
     });
-    return rows;
   }
 
   private validateShopCategories(categories: ShopCategoryName[]) {
