@@ -9,6 +9,15 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrations only. The running app builds its own client from DATABASE_URL
+    // (see PrismaService), so this URL is never used to serve traffic.
+    //
+    // Prefer a direct, non-pooled connection: prisma takes a postgres advisory
+    // lock for the length of a migration, and through a pooler that lock is
+    // held on a backend which outlives the command that took it. One crashed
+    // migration then wedges every later `migrate deploy` until the pooled
+    // connection is reaped. Falls back to DATABASE_URL so setups without a
+    // pooler need no extra variable.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });
