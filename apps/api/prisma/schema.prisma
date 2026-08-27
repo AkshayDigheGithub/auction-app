@@ -283,11 +283,23 @@ model Request {
   productCategoryId String?          @map("product_category_id")
   productCategory   ProductCategory? @relation(fields: [productCategoryId], references: [id])
 
+  // Match outcome at post time (AUC-59). Recorded rather than recomputed: a
+  // shop onboarded next week does not change the fact that this request
+  // reached nobody when it was posted. Null on rows created before this.
+  //
+  // Kept as two numbers because zero reach has two opposite causes, and they
+  // look identical to the customer: matched=0 is a supply/category problem
+  // (nobody nearby sells this), matched>0 with notified=0 is a billing one
+  // (they are all suspended or out of balance).
+  matchedShopCount  Int?             @map("matched_shop_count")
+  notifiedShopCount Int?             @map("notified_shop_count")
+
   bids Bid[]
   deal Deal?
 
   @@index([latitude, longitude])
   @@index([productCategoryId])
+  @@index([notifiedShopCount])
   @@map("requests")
 }
 
