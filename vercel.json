@@ -1,5 +1,6 @@
 {
   "installCommand": "sh vercel-install.sh",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web package.json package-lock.json vercel.json",
   "build": {
     "env": {
       "NEXT_PUBLIC_API_URL": "https://auction-app-api-production.up.railway.app/api",
