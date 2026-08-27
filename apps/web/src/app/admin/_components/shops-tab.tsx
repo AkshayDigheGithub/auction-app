@@ -27,6 +27,8 @@ interface ShopRow {
   id: string;
   shopName: string;
   address: string;
+  latitude: number;
+  longitude: number;
   category: string;
   secondaryCategories: string[];
   verified: boolean;
@@ -72,6 +74,8 @@ interface ShopDetail {
 }
 
 const TAKE = 25;
+
+const SHOP_CATEGORY_VALUES = Object.keys(SHOP_CATEGORY_LABELS);
 
 export function ShopsTab() {
   const [q, setQ] = useState("");
@@ -229,6 +233,7 @@ function ShopDetailPanel({
 }) {
   const [detail, setDetail] = useState<ShopDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingCategories, setEditingCategories] = useState(false);
   const [adjustRupees, setAdjustRupees] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -297,9 +302,35 @@ function ShopDetailPanel({
               {detail.shop.address} · {detail.shop.owner.phoneNumber}
             </p>
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge tone="blue">{categoryLabel(detail.shop.category)}</Badge>
+              {detail.shop.secondaryCategories.map((c) => (
+                <Badge key={c}>{categoryLabel(c)}</Badge>
+              ))}
+              {detail.shop.verified && <Badge tone="green">Verified</Badge>}
+              {detail.shop.suspended && <Badge tone="amber">Suspended</Badge>}
+            </div>
+
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">
+              UPI: {detail.shop.upiId ?? "not provided"}
+              {" · "}
+              {/* A link rather than an embedded map: this panel is opened
+                  constantly, and every render of a live map is a billable Maps
+                  load (AUC-20 capped that spend deliberately). */}
+              <a
+                className="underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
+                href={`https://www.google.com/maps/search/?api=1&query=${detail.shop.latitude},${detail.shop.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View location on map
+              </a>
+            </p>
+
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <Stat label="Balance" value={formatPaise(detail.shop.walletBalancePaise, { decimals: true })} />
               <Stat label="Free deals left" value={detail.freeDealsRemaining} />
+              <Stat label="Bids placed" value={detail.stats.bids} />
               <Stat label="Deals locked" value={detail.stats.dealsLocked} />
               <Stat
                 label="Lock → confirm"
@@ -339,7 +370,24 @@ function ShopDetailPanel({
               >
                 {detail.shop.suspended ? "Unsuspend" : "Suspend"}
               </button>
+              <button className={ghostButtonClass} disabled={busy} onClick={() => setEditingCategories((v) => !v)}>
+                {editingCategories ? "Cancel categories" : "Edit categories"}
+              </button>
             </div>
+
+            {editingCategories && (
+              <ShopCategoryEditor
+                shopId={shopId}
+                primary={detail.shop.category}
+                secondary={detail.shop.secondaryCategories}
+                onDone={() => {
+                  setEditingCategories(false);
+                  load();
+                  onChanged();
+                }}
+                onError={setError}
+              />
+            )}
             {detail.shop.suspended && detail.shop.suspendedReason && (
               <p className="text-xs text-amber-700 dark:text-amber-400">Reason: {detail.shop.suspendedReason}</p>
             )}
@@ -422,6 +470,106 @@ function ShopDetailPanel({
           </div>
         )}
       </aside>
+    </div>
+  );
+}
+
+/**
+ * Edit which categories a shop serves (AUC-60 / AUC-67).
+ *
+ * The primary category is what the shop is listed as; the secondaries widen
+ * what it gets matched on. The fee is NOT set by either — it follows the
+ * category the *request* falls under, which is what stops a shop registering
+ * as jewellery (0.30%) and taking electronics deals at a third of the rate.
+ * That is worth saying on screen, because the opposite is the natural guess.
+ */
+function ShopCategoryEditor({
+  shopId,
+  primary,
+  secondary,
+  onDone,
+  onError,
+}: {
+  shopId: string;
+  primary: string;
+  secondary: string[];
+  onDone: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [nextPrimary, setNextPrimary] = useState(primary);
+  const [nextSecondary, setNextSecondary] = useState<string[]>(secondary);
+  const [busy, setBusy] = useState(false);
+
+  // A category cannot be both primary and secondary — picking it as primary
+  // silently drops it from the secondaries rather than rejecting the change.
+  const secondaries = nextSecondary.filter((c) => c !== nextPrimary);
+  const dirty =
+    nextPrimary !== primary ||
+    secondaries.length !== secondary.length ||
+    secondaries.some((c) => !secondary.includes(c));
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.put(`/admin/shops/${shopId}/categories`, {
+        category: nextPrimary,
+        secondaryCategories: secondaries,
+      });
+      onDone();
+    } catch (e) {
+      onError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-neutral-200 px-3 py-3 dark:border-neutral-800">
+      <SectionTitle hint="Changes take effect on the next request matched — deals already locked keep their rate.">
+        Categories
+      </SectionTitle>
+
+      <label className={`${labelClass} mt-3`}>
+        Primary
+        <select className={inputClass} value={nextPrimary} onChange={(e) => setNextPrimary(e.target.value)}>
+          {SHOP_CATEGORY_VALUES.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <p className="mt-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">Also serves</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {SHOP_CATEGORY_VALUES.filter((c) => c !== nextPrimary).map((c) => {
+          const on = secondaries.includes(c);
+          return (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={on}
+              onClick={() =>
+                setNextSecondary((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+              }
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                on ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+              }`}
+            >
+              {categoryLabel(c)}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+        The fee always follows the category the <strong>request</strong> falls under, not the shop&apos;s primary — a
+        furniture shop winning an electronics deal pays the electronics rate.
+      </p>
+
+      <button className={`${primaryButtonClass} mt-3 w-full sm:w-auto`} onClick={save} disabled={busy || !dirty}>
+        {busy ? "Saving…" : "Save categories"}
+      </button>
     </div>
   );
 }

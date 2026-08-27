@@ -19,6 +19,7 @@ interface Shop {
   upiId: string | null;
   verified: boolean;
   category: string;
+  secondaryCategories: string[];
 }
 
 interface ShopCategoryOption {
@@ -42,6 +43,7 @@ export default function OnboardPage() {
   const [verified, setVerified] = useState(false);
   const [category, setCategory] = useState("mobile_electronics");
   const [existingCategory, setExistingCategory] = useState<string | null>(null);
+  const [secondaryCategories, setSecondaryCategories] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<ShopCategoryOption[]>([]);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,7 @@ export default function OnboardPage() {
         setVerified(shop.verified);
         setCategory(shop.category);
         setExistingCategory(shop.category);
+        setSecondaryCategories(shop.secondaryCategories ?? []);
       })
       .catch(() => {});
   }, [ready, user]);
@@ -167,6 +170,9 @@ export default function OnboardPage() {
         address,
         ...coords,
         category,
+        // Never send the primary back as a secondary — the API treats the two
+        // lists as disjoint.
+        secondaryCategories: secondaryCategories.filter((c) => c !== category),
         upiId: upiId || undefined,
       });
       router.push("/nearby");
@@ -223,6 +229,47 @@ export default function OnboardPage() {
               </span>
             )}
           </label>
+        )}
+
+        {/* Secondary categories (AUC-60). Unlike the primary these stay editable
+            after onboarding: they only widen which requests reach this shop, and
+            the fee follows the request's category, so there is nothing to game. */}
+        {categoryOptions.length > 0 && (
+          <div className={labelClass}>
+            Anything else you sell?
+            <div className="flex flex-wrap gap-2">
+              {categoryOptions
+                .filter((o) => o.category !== category && o.active)
+                .map((o) => {
+                  const on = secondaryCategories.includes(o.category);
+                  return (
+                    <button
+                      key={o.category}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setSecondaryCategories((prev) =>
+                          prev.includes(o.category)
+                            ? prev.filter((c) => c !== o.category)
+                            : [...prev, o.category],
+                        )
+                      }
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        on
+                          ? "bg-orange-600 text-white"
+                          : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+            </div>
+            <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
+              Optional. You will start seeing requests in these categories too, and each deal is charged at that
+              category&apos;s rate — not your main one.
+            </span>
+          </div>
         )}
 
         <label className={labelClass}>

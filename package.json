@@ -10,6 +10,7 @@
     "dev:web": "npm run dev -w web",
     "build": "npm run build -w api && npm run build -w web",
     "build:api": "npm run build -w api",
+    "migrate:deploy": "npm run migrate:deploy -w api",
     "start:api": "npm run start:prod -w api",
     "start": "npm run start:api"
   },
