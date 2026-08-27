@@ -22,6 +22,17 @@
         "web"
       ],
       "port": 3000
+    },
+    {
+      "name": "auction-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "site"
+      ],
+      "port": 3002
     }
   ]
 }

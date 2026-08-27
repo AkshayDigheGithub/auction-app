@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+ * Marketing site design tokens.
+ *
+ * Deliberately its own palette rather than an import from apps/web: the product
+ * UI optimises for scanning dense data, this optimises for a first impression.
+ * The one thing held in common is the brand orange, so the site and the app
+ * still read as the same company.
+ */
+@theme {
+  --font-display: var(--font-bricolage), "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, sans-serif;
+
+  /* Brand — matches the app's theme colour (#ea580c). */
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+  --color-brand-900: #7c2d12;
+
+  /* Ink scale — warm greys, so the orange does not sit on a cold blue-grey. */
+  --color-ink-50: #faf9f7;
+  --color-ink-100: #f4f2ef;
+  --color-ink-200: #e7e3dd;
+  --color-ink-400: #a8a29e;
+  --color-ink-500: #78716c;
+  --color-ink-600: #57534e;
+  --color-ink-800: #292524;
+  --color-ink-900: #1c1917;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Display type wants to be tight and dark; the default tracking is too loose
+   at large sizes. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Respect users who have asked the OS to stop animation. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
