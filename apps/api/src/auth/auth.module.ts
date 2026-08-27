@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { OTP_PROVIDER } from './otp-provider.interface';
+import { Msg91WidgetService } from './msg91-widget.service';
 import { ConsoleOtpProvider } from './providers/console-otp.provider';
 import { Msg91OtpProvider } from './providers/msg91-otp.provider';
 import { SharedJwtModule } from '../common/shared-jwt.module';
@@ -11,6 +12,7 @@ import { SharedJwtModule } from '../common/shared-jwt.module';
   controllers: [AuthController],
   providers: [
     AuthService,
+    Msg91WidgetService,
     ConsoleOtpProvider,
     Msg91OtpProvider,
     {

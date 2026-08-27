@@ -4,6 +4,12 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import {
+  MSG91_WIDGET_ENABLED,
+  retryWidgetOtp,
+  sendWidgetOtp,
+  verifyWidgetOtp,
+} from "@/lib/msg91-widget";
 import { useAuth, type Role } from "@/lib/auth-context";
 import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
 
@@ -36,13 +42,30 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<{ devCode?: string }>("/auth/otp/request", { phoneNumber });
-      setDevCode(res.devCode ?? null);
+      if (MSG91_WIDGET_ENABLED) {
+        // MSG91 generates and sends the code; our API is not involved until
+        // there is an access token to redeem.
+        await sendWidgetOtp(phoneNumber);
+        setDevCode(null);
+      } else {
+        const res = await api.post<{ devCode?: string }>("/auth/otp/request", { phoneNumber });
+        setDevCode(res.devCode ?? null);
+      }
       setStep("code");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not send OTP");
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resend() {
+    setError(null);
+    try {
+      if (MSG91_WIDGET_ENABLED) await retryWidgetOtp();
+      else await api.post("/auth/otp/request", { phoneNumber });
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -51,14 +74,23 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<{ token: string; user: { id: string; phoneNumber: string; role: Role } }>(
-        "/auth/otp/verify",
-        { phoneNumber, code, role },
-      );
+      type AuthResponse = { token: string; user: { id: string; phoneNumber: string; role: Role } };
+      let res: AuthResponse;
+
+      if (MSG91_WIDGET_ENABLED) {
+        // Deliberately no phone number in this call. The API takes it from
+        // MSG91's verification of the access token, so a tampered client
+        // cannot claim a number it has not proven.
+        const accessToken = await verifyWidgetOtp(code);
+        res = await api.post<AuthResponse>("/auth/widget/verify", { accessToken, role });
+      } else {
+        res = await api.post<AuthResponse>("/auth/otp/verify", { phoneNumber, code, role });
+      }
+
       login(res.token, { sub: res.user.id, phoneNumber: res.user.phoneNumber, role: res.user.role });
       router.push(ROLE_HOME[res.user.role] ?? "/");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Invalid code");
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -114,17 +146,26 @@ function LoginForm() {
             {loading && <Spinner className="h-4 w-4" />}
             {loading ? "Verifying…" : "Verify & continue"}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStep("phone");
-              setCode("");
-              setError(null);
-            }}
-            className="text-center text-sm text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
-          >
-            Use a different number
-          </button>
+          <div className="flex justify-between gap-4 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setStep("phone");
+                setCode("");
+                setError(null);
+              }}
+              className="text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
+            >
+              Use a different number
+            </button>
+            <button
+              type="button"
+              onClick={resend}
+              className="text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
+            >
+              Resend code
+            </button>
+          </div>
         </form>
       )}
 

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomInt } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OTP_PROVIDER, type OtpProvider } from './otp-provider.interface';
+import { Msg91WidgetService } from './msg91-widget.service';
 
 interface PendingOtp {
   code: string;
@@ -21,6 +22,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     @Inject(OTP_PROVIDER) private readonly otpProvider: OtpProvider,
+    private readonly msg91Widget: Msg91WidgetService,
   ) {}
 
   async requestOtp(phoneNumber: string): Promise<{ devCode?: string }> {
@@ -45,6 +47,33 @@ export class AuthService {
     }
     this.pending.delete(phoneNumber);
 
+    return this.issueSession(phoneNumber, role, name);
+  }
+
+  /**
+   * Widget flow (MSG91 "Login with OTP"): the browser sends only the access
+   * token MSG91 issued. The phone number comes back from MSG91 and is never
+   * read off the request — see Msg91WidgetService for why that matters.
+   */
+  async verifyWidgetToken(
+    accessToken: string,
+    role: 'customer' | 'shop_owner' | 'admin',
+    name?: string,
+  ) {
+    const phoneNumber = await this.msg91Widget.verifyAccessToken(accessToken);
+    return this.issueSession(phoneNumber, role, name);
+  }
+
+  /**
+   * Everything after "this phone number is proven": the admin self-signup
+   * guard, the user record, and the session token. Shared so the two
+   * verification paths cannot drift on who is allowed to become an admin.
+   */
+  private async issueSession(
+    phoneNumber: string,
+    role: 'customer' | 'shop_owner' | 'admin',
+    name?: string,
+  ) {
     if (role === 'admin') {
       const existing = await this.prisma.db.user.findUnique({ where: { phoneNumber } });
       if (!existing || existing.role !== 'admin') {
