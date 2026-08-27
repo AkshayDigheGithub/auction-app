@@ -62,7 +62,7 @@ export function OverviewTab() {
         </InfoBanner>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
         <Stat
           label={shadow ? "Would-be revenue" : "Fees earned"}
           value={formatPaise(headline)}
@@ -92,7 +92,7 @@ export function OverviewTab() {
       <SectionTitle hint="Money shops have paid in but not yet used is a liability — service owed, not revenue earned. It is deliberately kept apart from fees.">
         Wallet
       </SectionTitle>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
         <Stat label="Float outstanding" value={formatPaise(rev.wallet.floatOutstandingPaise)} hint="Liability" tone="amber" />
         <Stat label="Topped up" value={formatPaise(rev.wallet.rechargedPaise)} />
         <Stat label="Fees consumed" value={formatPaise(rev.wallet.feesConsumedPaise)} />
@@ -102,7 +102,7 @@ export function OverviewTab() {
       <SectionTitle hint="Trial cost is acquisition spend, not lost revenue. Reversals are a deduction.">
         Adjustments
       </SectionTitle>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
         <Stat
           label="Trial waived"
           value={formatPaise(rev.trialWaivedPaise)}
