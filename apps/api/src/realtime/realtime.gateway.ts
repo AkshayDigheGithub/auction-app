@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { allowedOrigins } from '../common/cors-origins';
 
 /**
  * Realtime layer for bidding (AUC-4). Rooms:
@@ -17,7 +18,7 @@ import { Logger } from '@nestjs/common';
  *    without changing the call sites (requestsService calls notifyShopsNearby()).
  */
 @WebSocketGateway({
-  cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
+  cors: { origin: allowedOrigins(), credentials: true },
 })
 export class RealtimeGateway {
   @WebSocketServer() server!: Server;
