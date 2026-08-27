@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "sh vercel-install.sh"
+  "installCommand": "sh vercel-install.sh",
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_APP_URL": "https://app.mivikto.store"
+    }
+  }
 }
