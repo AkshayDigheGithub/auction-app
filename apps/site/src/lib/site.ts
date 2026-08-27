@@ -29,6 +29,17 @@ export const APP_URL =
 export const PILOT_CITY: string | null = null;
 
 /**
+ * Role-specific entry points. The app reads `role` off the query string and,
+ * after OTP, sends a customer to /request/new and a shop owner to /onboard.
+ *
+ * `shop_owner` is the exact value the API's Role enum expects. "seller" or
+ * "shop" still render the login page, so the link looks fine, but verification
+ * then fails — which presents as a broken OTP rather than a bad link.
+ */
+export const CUSTOMER_LOGIN_URL = `${APP_URL}/login?role=customer`;
+export const SHOP_LOGIN_URL = `${APP_URL}/login?role=shop_owner`;
+
+/**
  * PLACEHOLDER — replace before this site goes public.
  *
  * This audience trusts a voice on the phone, not a contact form. A number that

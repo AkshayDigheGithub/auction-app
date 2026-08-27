@@ -1,6 +1,6 @@
 import { Faq } from "@/components/faq";
 import { Card, Eyebrow, Heading, Lead, Section } from "@/components/sections";
-import { APP_URL, PILOT_CITY } from "@/lib/site";
+import { CUSTOMER_LOGIN_URL, PILOT_CITY, SHOP_LOGIN_URL } from "@/lib/site";
 
 export default function HomePage() {
   return (
@@ -54,7 +54,7 @@ function Hero() {
 
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a
-            href={APP_URL}
+            href={CUSTOMER_LOGIN_URL}
             className="w-full rounded-full bg-brand-600 px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700 sm:w-auto"
           >
             Get bids near you
@@ -119,8 +119,19 @@ function HowItWorks() {
       </div>
 
       <div className="mt-12 grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <StepTrack label="If you are buying" steps={CUSTOMER_STEPS} tone="brand" />
-        <StepTrack label="If you run a shop" steps={SHOP_STEPS} tone="ink" id="for-shops" />
+        <StepTrack
+          label="If you are buying"
+          steps={CUSTOMER_STEPS}
+          tone="brand"
+          cta={{ href: CUSTOMER_LOGIN_URL, label: "Post your first request" }}
+        />
+        <StepTrack
+          label="If you run a shop"
+          steps={SHOP_STEPS}
+          tone="ink"
+          id="for-shops"
+          cta={{ href: SHOP_LOGIN_URL, label: "List your shop" }}
+        />
       </div>
     </Section>
   );
@@ -131,11 +142,16 @@ function StepTrack({
   steps,
   tone,
   id,
+  cta,
 }: {
   label: string;
   steps: { title: string; body: string }[];
   tone: "brand" | "ink";
   id?: string;
+  /* Each track ends in its own entry point. The hero's "I run a shop" button
+     scrolls here, so without this the shop owner arrives at an explanation and
+     then has nowhere to go. */
+  cta?: { href: string; label: string };
 }) {
   const badge =
     tone === "brand" ? "bg-brand-600 text-white" : "bg-ink-900 text-white";
@@ -162,6 +178,17 @@ function StepTrack({
           </li>
         ))}
       </ol>
+
+      {cta && (
+        <a
+          href={cta.href}
+          className={`mt-7 inline-block rounded-full px-6 py-3 text-sm font-semibold text-white transition ${
+            tone === "brand" ? "bg-brand-600 hover:bg-brand-700" : "bg-ink-900 hover:bg-ink-800"
+          }`}
+        >
+          {cta.label}
+        </a>
+      )}
     </div>
   );
 }
@@ -290,7 +317,7 @@ function Coverage() {
             : "This works when enough shops near you sell what you are asking for, so we are starting in one area and widening from there. It costs you nothing to post a request and find out."}
         </p>
         <a
-          href={APP_URL}
+          href={CUSTOMER_LOGIN_URL}
           className="mt-8 inline-block rounded-full bg-white px-7 py-3.5 text-base font-semibold text-ink-900 transition hover:bg-ink-100"
         >
           Try it with a real request
@@ -314,7 +341,7 @@ function FinalCta() {
             </p>
           </div>
           <a
-            href={APP_URL}
+            href={CUSTOMER_LOGIN_URL}
             className="rounded-full bg-brand-600 px-6 py-3 text-center text-base font-semibold text-white transition hover:bg-brand-700"
           >
             Get bids near you
@@ -329,7 +356,7 @@ function FinalCta() {
             </p>
           </div>
           <a
-            href={APP_URL}
+            href={SHOP_LOGIN_URL}
             className="rounded-full bg-ink-900 px-6 py-3 text-center text-base font-semibold text-white transition hover:bg-ink-800"
           >
             Get customers near you
