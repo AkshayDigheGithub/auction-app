@@ -6,8 +6,18 @@
 /**
  * Where the actual product lives. In production this is the app subdomain; the
  * marketing site is on the apex. Locally it is the dev server on :3000.
+ *
+ * The production default is hardcoded rather than set through vercel.json's
+ * `build.env`: adding that key silently disables Vercel's Next.js framework
+ * preset, so the build stops emitting .vercel/output and fails looking for a
+ * static `public/` directory. NEXT_PUBLIC_APP_URL still overrides this when
+ * it is set in project settings.
  */
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+export const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://app.mivikto.store"
+    : "http://localhost:3000");
 
 /**
  * PLACEHOLDER — the pilot city is still an open decision (spec §10, item 1).
