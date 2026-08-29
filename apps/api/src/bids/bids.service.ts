@@ -16,6 +16,22 @@ import { isLiveBilling } from '../pricing/billing-mode';
 import { formatPaise } from '../pricing/fee.util';
 import { FREE_DEALS_PER_SHOP } from '../deals/billing.constants';
 
+/**
+ * The only shop fields a customer is entitled to see on a bid.
+ *
+ * `include: { shop: true }` used to spread the whole row into every bid — wallet
+ * balance, UPI id, GST number, owner user id, suspension reason. None of that
+ * is needed to choose a bid, and a shop owner has a reasonable expectation that
+ * their balance is not visible to the people bidding reaches.
+ *
+ * Shared with the socket broadcast in `submitBid` so the live-inserted bid has
+ * exactly the same shape as a refetched one — otherwise the customer's list
+ * renders two different objects depending on how the bid arrived.
+ */
+const CUSTOMER_VISIBLE_SHOP = {
+  select: { id: true, shopName: true, verified: true },
+} as const;
+
 @Injectable()
 export class BidsService {
   constructor(
@@ -48,7 +64,7 @@ export class BidsService {
 
     const bid = await this.prisma.db.bid.create({
       data: { requestId, shopId: shop.id, price: dto.price, note: dto.note },
-      include: { shop: true },
+      include: { shop: CUSTOMER_VISIBLE_SHOP },
     });
 
     await this.bidCache.invalidate(requestId);
@@ -89,14 +105,31 @@ export class BidsService {
     }
   }
 
-  /** Live bid list for a request (AUC-11), Redis/in-memory cached (AUC-23). */
-  async listBids(requestId: string) {
+  /**
+   * Live bid list for a request (AUC-11), Redis/in-memory cached (AUC-23).
+   *
+   * `customerUserId` is required, not optional: this list is what makes bidding
+   * blind, so the ownership check has to be impossible to forget at a call site.
+   * The check runs before the cache read — a cache hit must not be a way around
+   * authorisation.
+   */
+  async listBids(requestId: string, customerUserId: string) {
+    const request = await this.prisma.db.request.findUnique({
+      where: { id: requestId },
+      select: { customerUserId: true },
+    });
+    if (!request) throw new NotFoundException('Request not found');
+    // Deliberately NotFound rather than Forbidden: telling a stranger "this
+    // exists but is not yours" confirms a valid request id for them.
+    if (request.customerUserId !== customerUserId)
+      throw new NotFoundException('Request not found');
+
     const cached = await this.bidCache.getBids(requestId);
     if (cached) return cached;
 
     const bids = await this.prisma.db.bid.findMany({
       where: { requestId, status: 'active' },
-      include: { shop: true },
+      include: { shop: CUSTOMER_VISIBLE_SHOP },
       orderBy: { price: 'asc' },
     });
     await this.bidCache.setBids(requestId, bids);

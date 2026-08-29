@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
@@ -29,22 +29,39 @@ export default function DealPage() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * Neither fetch below used to have a `.catch()`, so a deal id that no longer
+   * resolves produced an unhandled rejection and left this screen stuck on
+   * "Preparing your QR code…" — the worst place to strand someone, since a
+   * customer hits it standing in the shop.
+   */
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     if (!ready || !user || !id) return;
 
-    api.get<{ dataUrl: string; deal: Deal }>(`/deals/${id}/qr`).then((res) => {
-      setDeal(res.deal);
-      setQrDataUrl(res.dataUrl);
-    });
+    // The QR is allowed to fail on its own — a deal that is already confirmed
+    // has no code left to show — so it must not be what marks the deal missing.
+    api
+      .get<{ dataUrl: string; deal: Deal }>(`/deals/${id}/qr`)
+      .then((res) => {
+        setDeal(res.deal);
+        setQrDataUrl(res.dataUrl);
+      })
+      .catch(() => {});
 
     const socket = getSocket();
-    const onCompleted = () => api.get<Deal>(`/deals/${id}`).then(setDeal);
+    const onCompleted = () => api.get<Deal>(`/deals/${id}`).then(setDeal).catch(() => {});
 
-    api.get<Deal>(`/deals/${id}`).then((d) => {
-      setDeal(d);
-      socket.emit("join-request", d.requestId);
-    });
+    api
+      .get<Deal>(`/deals/${id}`)
+      .then((d) => {
+        setDeal(d);
+        socket.emit("join-request", d.requestId);
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && (err.status === 404 || err.status === 403)) setMissing(true);
+      });
     socket.on("deal:completed", onCompleted);
 
     return () => {
@@ -68,6 +85,7 @@ export default function DealPage() {
     }
   }
 
+  if (missing) notFound();
   if (!ready || !user || !deal) return <LoadingScreen label="Preparing your QR code…" />;
 
   return (
