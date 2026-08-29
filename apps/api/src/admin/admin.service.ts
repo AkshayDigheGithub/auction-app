@@ -10,6 +10,10 @@ import { AuditService } from '../audit/audit.service';
 import { DealsService } from '../deals/deals.service';
 import { CatalogService } from '../catalog/catalog.service';
 import {
+  DisputesService,
+  type ListDisputesOpts,
+} from '../disputes/disputes.service';
+import {
   PricingService,
   RATE_SANITY_THRESHOLD_BPS,
   SHOP_CATEGORIES,
@@ -53,6 +57,7 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly deals: DealsService,
     private readonly catalog: CatalogService,
+    private readonly disputes: DisputesService,
   ) {}
 
   // ---------------------------------------------------------------- listings
@@ -213,7 +218,7 @@ export class AdminService {
     });
     if (!shop) throw new NotFoundException('Shop not found');
 
-    const [ledger, deals, confirmedCount, rule] = await Promise.all([
+    const [ledger, deals, confirmedCount, rule, disputes] = await Promise.all([
       this.wallet.ledger(shopId, { take: 20 }),
       this.prisma.db.deal.findMany({
         where: { shopId },
@@ -226,6 +231,9 @@ export class AdminService {
       }),
       this.prisma.db.deal.count({ where: { shopId, qrStatus: 'confirmed' } }),
       this.pricing.getRule(shop.category).catch(() => null),
+      // Complaint history belongs on this page: verifying or suspending a shop
+      // is the decision these disputes exist to inform (AUC-34).
+      this.disputes.shopSummary(shopId),
     ]);
 
     const feesCharged = await this.prisma.db.deal.aggregate({
@@ -249,6 +257,7 @@ export class AdminService {
         feesChargedPaise: feesCharged._sum.feeAmountPaise ?? 0,
         chargedDeals: feesCharged._count._all,
       },
+      disputes,
       recentLedger: ledger.rows,
       recentDeals: deals,
     };
@@ -686,6 +695,51 @@ export class AdminService {
       targetType: 'reversal',
       targetId: reversalId,
       after: { note, dealId: result.dealId },
+      ip: ctx.ip,
+    });
+    return result;
+  }
+
+  // --------------------------------------------------------------- disputes
+
+  listDisputes(opts: ListDisputesOpts = {}) {
+    return this.disputes.list(opts);
+  }
+
+  countOpenDisputes() {
+    return this.disputes.countOpen();
+  }
+
+  /**
+   * Uphold or dismiss a complaint (AUC-34).
+   *
+   * Audited like every other privileged action: an upheld dispute is what a
+   * later suspension gets justified by, so who decided it and why has to
+   * survive longer than anyone's memory.
+   */
+  async resolveDispute(
+    disputeId: string,
+    outcome: 'upheld' | 'dismissed',
+    note: string,
+    ctx: ActorContext,
+  ) {
+    const result = await this.disputes.resolve({
+      disputeId,
+      outcome,
+      note,
+      resolvedByUserId: ctx.actorUserId,
+    });
+    await this.audit.record({
+      actorUserId: ctx.actorUserId,
+      action: outcome === 'upheld' ? 'dispute.uphold' : 'dispute.dismiss',
+      targetType: 'dispute',
+      targetId: disputeId,
+      after: {
+        outcome,
+        note,
+        dealId: result.dealId,
+        shopId: result.shopId,
+      },
       ip: ctx.ip,
     });
     return result;

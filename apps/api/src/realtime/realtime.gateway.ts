@@ -7,7 +7,6 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { allowedOrigins } from '../common/cors-origins';
 
 /**
  * Realtime layer for bidding (AUC-4). Rooms:
@@ -17,9 +16,14 @@ import { allowedOrigins } from '../common/cors-origins';
  *    scaffold stage — swap in a proper Web Push subscription flow later
  *    without changing the call sites (requestsService calls notifyShopsNearby()).
  */
-@WebSocketGateway({
-  cors: { origin: allowedOrigins(), credentials: true },
-})
+/*
+ * CORS is deliberately NOT set here. Decorator arguments are evaluated at
+ * class-definition time — before ConfigModule has loaded `.env` — so reading
+ * the allowlist at this point silently fell back to localhost and killed the
+ * live bid feed. It is applied at bootstrap instead: see CorsIoAdapter in
+ * main.ts.
+ */
+@WebSocketGateway()
 export class RealtimeGateway {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(RealtimeGateway.name);

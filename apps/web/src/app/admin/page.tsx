@@ -13,6 +13,7 @@ import { ReversalsTab } from "./_components/reversals-tab";
 import { QualityTab } from "./_components/quality-tab";
 import { AuditTab } from "./_components/audit-tab";
 import { CategoriesTab } from "./_components/categories-tab";
+import { DisputesTab } from "./_components/disputes-tab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -22,6 +23,7 @@ const TABS = [
   { id: "rates", label: "Rates" },
   { id: "categories", label: "Categories" },
   { id: "reports", label: "Reports" },
+  { id: "disputes", label: "Disputes" },
   { id: "quality", label: "Quality" },
   { id: "audit", label: "Audit" },
 ] as const;
@@ -32,6 +34,10 @@ export default function AdminPage() {
   const { ready, user } = useRequireRole("admin");
   const [tab, setTab] = useState<TabId>("overview");
   const [pendingReports, setPendingReports] = useState(0);
+  const [openDisputes, setOpenDisputes] = useState(0);
+  // Bumped when a queue is acted on, so its badge stops claiming a backlog
+  // that was just cleared.
+  const [badgeKey, setBadgeKey] = useState(0);
 
   // Remember the tab across reloads — an admin working through reports should
   // not be dropped back on Overview every time they refresh.
@@ -63,9 +69,19 @@ export default function AdminPage() {
       .get<{ total: number }>("/admin/reversals?status=pending&take=1")
       .then((r) => setPendingReports(r.total))
       .catch(() => {});
-  }, [ready, user, tab]);
+    api
+      .get<{ open: number }>("/admin/disputes/open-count")
+      .then((r) => setOpenDisputes(r.open))
+      .catch(() => {});
+  }, [ready, user, tab, badgeKey]);
 
   if (!ready || !user) return <LoadingScreen />;
+
+  // Queues that need someone to act carry their backlog on the tab itself.
+  const badges: Partial<Record<TabId, number>> = {
+    reports: pendingReports,
+    disputes: openDisputes,
+  };
 
   return (
     <main className="flex flex-1 flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
@@ -84,13 +100,13 @@ export default function AdminPage() {
               }`}
             >
               {t.label}
-              {t.id === "reports" && pendingReports > 0 && (
+              {(badges[t.id] ?? 0) > 0 && (
                 <span
                   className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
                     tab === t.id ? "bg-white/25" : "bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200"
                   }`}
                 >
-                  {pendingReports}
+                  {badges[t.id]}
                 </span>
               )}
             </button>
@@ -105,6 +121,7 @@ export default function AdminPage() {
       {tab === "rates" && <RatesTab />}
       {tab === "categories" && <CategoriesTab />}
       {tab === "reports" && <ReversalsTab />}
+      {tab === "disputes" && <DisputesTab onResolved={() => setBadgeKey((k) => k + 1)} />}
       {tab === "quality" && <QualityTab />}
       {tab === "audit" && <AuditTab />}
     </main>
