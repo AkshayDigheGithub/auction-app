@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
 import { ErrorBanner, ghostButtonClass, inputClass, LoadingScreen, primaryButtonClass } from "@/components/ui";
+import { DisputePanel } from "@/components/dispute-panel";
 
 interface Deal {
   id: string;
@@ -148,6 +149,12 @@ export default function DealPage() {
           </div>
         </>
       )}
+
+      {/* Conduct complaints stay available after confirmation too: a shop can
+          scan the QR and still have charged more than it bid (AUC-34). */}
+      <div className="w-full max-w-sm border-t border-neutral-100 pt-5 dark:border-neutral-800">
+        <DisputePanel dealId={id} />
+      </div>
     </main>
   );
 }

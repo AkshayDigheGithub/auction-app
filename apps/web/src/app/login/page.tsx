@@ -62,8 +62,14 @@ function LoginForm() {
   async function resend() {
     setError(null);
     try {
-      if (MSG91_WIDGET_ENABLED) await retryWidgetOtp();
-      else await api.post("/auth/otp/request", { phoneNumber });
+      if (MSG91_WIDGET_ENABLED) {
+        await retryWidgetOtp();
+      } else {
+        // Refresh the dev banner as well — a resend replaces the code the API
+        // is holding, so leaving the old one on screen guarantees a rejection.
+        const res = await api.post<{ devCode?: string }>("/auth/otp/request", { phoneNumber });
+        setDevCode(res.devCode ?? null);
+      }
     } catch (err) {
       setError((err as Error).message);
     }

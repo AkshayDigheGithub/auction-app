@@ -16,6 +16,8 @@ export type AuditAction =
   | 'shop.categories.update'
   | 'reversal.approve'
   | 'reversal.reject'
+  | 'dispute.uphold'
+  | 'dispute.dismiss'
   | 'product_category.create'
   | 'product_category.update'
   | 'product_category.deactivate';
@@ -24,7 +26,12 @@ export interface AuditRecordInput {
   actorUserId: string;
   action: AuditAction;
   targetType:
-    'shop' | 'commission_rate' | 'deal' | 'reversal' | 'product_category';
+    | 'shop'
+    | 'commission_rate'
+    | 'deal'
+    | 'reversal'
+    | 'dispute'
+    | 'product_category';
   targetId: string;
   before?: unknown;
   after?: unknown;
