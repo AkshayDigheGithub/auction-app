@@ -82,3 +82,89 @@ describe('AuthService.requestOtp — dev code exposure (AUC-43)', () => {
     }
   });
 });
+
+/**
+ * A verify-capable service: the dev-code suite above passes empty stubs
+ * because requestOtp never touches the database or the signer.
+ */
+function makeVerifiableService(options: { failFirstUpsert?: boolean } = {}) {
+  const sent: Array<{ phoneNumber: string; code: string }> = [];
+  const otpProvider: OtpProvider = {
+    sendOtp: (phoneNumber, code) => {
+      sent.push({ phoneNumber, code });
+      return Promise.resolve();
+    },
+  };
+
+  let upserts = 0;
+  const prisma = {
+    db: {
+      user: {
+        findUnique: () => Promise.resolve(null),
+        upsert: ({ where, create }: { where: { phoneNumber: string }; create: { role: string; name?: string } }) => {
+          upserts += 1;
+          if (options.failFirstUpsert && upserts === 1) {
+            // What Neon does to a pooled connection that has gone idle.
+            return Promise.reject(new Error("Connection terminated unexpectedly"));
+          }
+          return Promise.resolve({
+            id: "user-1",
+            phoneNumber: where.phoneNumber,
+            role: create.role,
+            name: create.name ?? null,
+          });
+        },
+      },
+    },
+  } as unknown as PrismaService;
+
+  const jwtService = { sign: () => "signed-token" } as unknown as JwtService;
+
+  const service = new AuthService(prisma, jwtService, otpProvider, {} as Msg91WidgetService);
+  return { service, sent };
+}
+
+describe("AuthService.verifyOtp — when the code is consumed", () => {
+  it("issues a session and consumes the code exactly once", async () => {
+    const { service, sent } = makeVerifiableService();
+    await service.requestOtp("+919876543210");
+    const { code } = sent[0];
+
+    const res = await service.verifyOtp("+919876543210", code, "customer");
+    expect(res.token).toBe("signed-token");
+
+    // Replay must fail: the code is single-use on the success path.
+    await expect(service.verifyOtp("+919876543210", code, "customer")).rejects.toThrow(
+      "Invalid or expired OTP",
+    );
+  });
+
+  it("leaves the code usable when issuing the session fails", async () => {
+    // The bug this guards: a dropped database connection burned the code, so
+    // the retry with the code still on screen reported "Invalid or expired
+    // OTP" — pointing at the OTP instead of at the real failure.
+    const { service, sent } = makeVerifiableService({ failFirstUpsert: true });
+    await service.requestOtp("+919876543210");
+    const { code } = sent[0];
+
+    await expect(service.verifyOtp("+919876543210", code, "customer")).rejects.toThrow(
+      "Connection terminated unexpectedly",
+    );
+
+    const res = await service.verifyOtp("+919876543210", code, "customer");
+    expect(res.token).toBe("signed-token");
+  });
+
+  it("still rejects a wrong code, and leaves the real one usable", async () => {
+    const { service, sent } = makeVerifiableService();
+    await service.requestOtp("+919876543210");
+    const { code } = sent[0];
+
+    await expect(service.verifyOtp("+919876543210", "000000", "customer")).rejects.toThrow(
+      "Invalid or expired OTP",
+    );
+    await expect(service.verifyOtp("+919876543210", code, "customer")).resolves.toMatchObject({
+      token: "signed-token",
+    });
+  });
+});

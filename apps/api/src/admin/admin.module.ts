@@ -7,6 +7,7 @@ import { PricingModule } from '../pricing/pricing.module';
 import { AuditModule } from '../audit/audit.module';
 import { DealsModule } from '../deals/deals.module';
 import { CatalogModule } from '../catalog/catalog.module';
+import { DisputesModule } from '../disputes/disputes.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CatalogModule } from '../catalog/catalog.module';
     AuditModule,
     DealsModule,
     CatalogModule,
+    DisputesModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

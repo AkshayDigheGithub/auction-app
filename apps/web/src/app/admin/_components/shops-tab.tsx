@@ -22,6 +22,12 @@ import {
   Select,
   Stat,
 } from "./shared";
+import {
+  DISPUTE_REASON_SHORT,
+  DISPUTE_STATUS_TONE,
+  type DisputeReason,
+  type DisputeStatus,
+} from "@/lib/disputes";
 
 interface ShopRow {
   id: string;
@@ -54,6 +60,20 @@ interface ShopDetail {
     lockToConfirmRatio: number | null;
     feesChargedPaise: number;
     chargedDeals: number;
+  };
+  /** Conduct complaint history — what the verify/suspend buttons below rest on (AUC-34). */
+  disputes: {
+    open: number;
+    upheld: number;
+    dismissed: number;
+    total: number;
+    recent: {
+      id: string;
+      reason: DisputeReason;
+      details: string | null;
+      status: DisputeStatus;
+      createdAt: string;
+    }[];
   };
   recentLedger: {
     id: string;
@@ -344,7 +364,45 @@ function ShopDetailPanel({
                   detail.stats.lockToConfirmRatio != null && detail.stats.lockToConfirmRatio < 0.5 ? "amber" : "neutral"
                 }
               />
+              <Stat
+                label="Complaints"
+                value={detail.disputes.total}
+                hint={
+                  detail.disputes.total === 0
+                    ? "None raised"
+                    : `${detail.disputes.upheld} upheld · ${detail.disputes.open} open`
+                }
+                tone={detail.disputes.upheld > 0 ? "amber" : "neutral"}
+              />
             </div>
+
+            {/* Sits directly above Verify/Suspend on purpose: this is the
+                evidence those buttons are supposed to be acting on. */}
+            {detail.disputes.recent.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <SectionTitle hint="Most recent first. Full history is on the Disputes tab.">
+                  Complaints
+                </SectionTitle>
+                {detail.disputes.recent.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-start justify-between gap-3 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-900"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-neutral-700 dark:text-neutral-200">
+                        {DISPUTE_REASON_SHORT[d.reason]}
+                      </p>
+                      {d.details && (
+                        <p className="truncate text-xs text-neutral-400 dark:text-neutral-500" title={d.details}>
+                          {d.details}
+                        </p>
+                      )}
+                    </div>
+                    <Badge tone={DISPUTE_STATUS_TONE[d.status]}>{d.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <button

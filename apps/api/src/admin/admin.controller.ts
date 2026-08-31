@@ -23,6 +23,11 @@ import { UpdateRateDto } from './dto/update-rate.dto';
 import { SuspendShopDto } from './dto/suspend-shop.dto';
 import { UpdateShopCategoriesDto } from './dto/update-shop-categories.dto';
 import { ResolveReversalDto } from './dto/resolve-reversal.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import type {
+  DisputeReason,
+  DisputeStatus,
+} from '../../generated/prisma/client.js';
 import {
   CreateProductCategoryDto,
   UpdateProductCategoryDto,
@@ -335,6 +340,44 @@ export class AdminController {
     @Body() dto: ResolveReversalDto,
   ) {
     return this.adminService.rejectReversal(id, dto.note ?? '', {
+      actorUserId: user.sub,
+      ip,
+    });
+  }
+
+  // ------------------------------------------------------------- disputes
+
+  @Get('disputes')
+  disputes(
+    @Query('status') status?: string,
+    @Query('shopId') shopId?: string,
+    @Query('reason') reason?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.adminService.listDisputes({
+      status: status ? (status as DisputeStatus) : undefined,
+      shopId: shopId || undefined,
+      reason: reason ? (reason as DisputeReason) : undefined,
+      skip: num(skip),
+      take: num(take),
+    });
+  }
+
+  /** Drives the unread badge on the Disputes tab. */
+  @Get('disputes/open-count')
+  async openDisputeCount() {
+    return { open: await this.adminService.countOpenDisputes() };
+  }
+
+  @Post('disputes/:id/resolve')
+  resolveDispute(
+    @CurrentUser() user: JwtPayload,
+    @Ip() ip: string,
+    @Param('id') id: string,
+    @Body() dto: ResolveDisputeDto,
+  ) {
+    return this.adminService.resolveDispute(id, dto.outcome, dto.note, {
       actorUserId: user.sub,
       ip,
     });

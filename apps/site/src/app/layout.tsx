@@ -26,12 +26,17 @@ export const metadata: Metadata = {
     default: "Nearby Bids — Let local shops compete for your order",
     template: "%s · Nearby Bids",
   },
+  // No timing claim in either description. "Collect it the same day" used to
+  // sit here, which promised a bid speed the FAQ deliberately refuses to
+  // promise ("we would rather tell you that than promise you bids in five
+  // minutes") — and this is the copy that shows in search results and link
+  // previews, so it was the most-read sentence on the site contradicting it.
   description:
-    "Post what you want to buy. Shops near you send their best price. You pick one and collect it the same day — no delivery wait, no haggling shop to shop.",
+    "Post what you want to buy. Shops near you send their best price. You pick one and collect it in person — no delivery wait, no haggling shop to shop.",
   openGraph: {
     title: "Nearby Bids — Let local shops compete for your order",
     description:
-      "Post what you want to buy. Shops near you send their best price. Pick one and collect it the same day.",
+      "Post what you want to buy. Shops near you send their best price. Pick one and collect it in person.",
     type: "website",
   },
 };

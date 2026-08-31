@@ -77,9 +77,15 @@ export class AuthService {
     if (!entry || entry.expiresAt < Date.now() || entry.code !== code) {
       throw new UnauthorizedException('Invalid or expired OTP');
     }
+    // Consume the code only once a session actually came back. Deleting it
+    // first meant any failure inside issueSession — a dropped database
+    // connection is the common one — burned the code, so the retry the user
+    // naturally makes with the code still on their screen returned "Invalid
+    // or expired OTP" and sent them looking for a bug in the OTP itself.
+    // A wrong code is already rejected above, so this does not widen guessing.
+    const session = await this.issueSession(phoneNumber, role, name);
     this.pending.delete(phoneNumber);
-
-    return this.issueSession(phoneNumber, role, name);
+    return session;
   }
 
   /**
