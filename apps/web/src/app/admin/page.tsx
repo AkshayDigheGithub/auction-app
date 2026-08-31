@@ -13,10 +13,12 @@ import { ReversalsTab } from "./_components/reversals-tab";
 import { QualityTab } from "./_components/quality-tab";
 import { AuditTab } from "./_components/audit-tab";
 import { CategoriesTab } from "./_components/categories-tab";
+import { UsersTab } from "./_components/users-tab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "shops", label: "Shops" },
+  { id: "users", label: "Users" },
   { id: "deals", label: "Deals" },
   { id: "requests", label: "Requests" },
   { id: "rates", label: "Rates" },
@@ -100,6 +102,7 @@ export default function AdminPage() {
 
       {tab === "overview" && <OverviewTab />}
       {tab === "shops" && <ShopsTab />}
+      {tab === "users" && <UsersTab />}
       {tab === "deals" && <DealsTab />}
       {tab === "requests" && <RequestsTab />}
       {tab === "rates" && <RatesTab />}

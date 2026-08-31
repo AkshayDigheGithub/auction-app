@@ -102,6 +102,25 @@ export class AdminController {
     });
   }
 
+  @Get('users')
+  users(
+    @Query('q') q?: string,
+    @Query('role') role?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.adminService.listUsers({
+      q,
+      role,
+      from,
+      to,
+      skip: num(skip),
+      take: num(take),
+    });
+  }
+
   // --------------------------------------------------------------- export
 
   /** CSV export respecting the same filters as the list views (AUC-71). */
@@ -127,6 +146,9 @@ export class AdminController {
         break;
       case 'shops':
         rows = (await this.adminService.listShops(opts)).rows;
+        break;
+      case 'users':
+        rows = (await this.adminService.listUsers(opts)).rows;
         break;
       case 'ledger':
         rows = (await this.adminService.shopLedger(query.shopId, opts)).rows;
