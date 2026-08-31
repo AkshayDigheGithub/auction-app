@@ -203,6 +203,65 @@ export class AdminService {
     };
   }
 
+  /**
+   * Everyone with an account, customers and shop owners alike.
+   *
+   * Every other listing is keyed on a shop, a request or a deal, which leaves
+   * no way to answer "who is this phone number?" — the question support gets
+   * first whenever someone calls in. A shop owner with no `shop` is the other
+   * thing worth seeing here: they signed up and never finished onboarding.
+   */
+  async listUsers(
+    opts: PageOpts & {
+      q?: string;
+      role?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ) {
+    const where = {
+      ...(opts.role ? { role: opts.role as never } : {}),
+      ...(opts.q
+        ? {
+            OR: [
+              { phoneNumber: { contains: opts.q } },
+              { name: { contains: opts.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+      ...(dateRange(opts.from, opts.to)
+        ? { createdAt: dateRange(opts.from, opts.to) }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.db.user.findMany({
+        where,
+        select: {
+          id: true,
+          phoneNumber: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          shop: {
+            select: {
+              id: true,
+              shopName: true,
+              verified: true,
+              suspended: true,
+            },
+          },
+          _count: { select: { requests: true, deals: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...page(opts),
+      }),
+      this.prisma.db.user.count({ where }),
+    ]);
+
+    return { rows, total, ...page(opts) };
+  }
+
   // ------------------------------------------------------------- shop detail
 
   /** Everything about one shop on one page (AUC-67). */
