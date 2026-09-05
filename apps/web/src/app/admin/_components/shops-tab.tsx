@@ -11,17 +11,7 @@ import {
   labelClass,
   primaryButtonClass,
 } from "@/components/ui";
-import {
-  Column,
-  ExportButton,
-  FilterBar,
-  Pager,
-  RecordList,
-  SearchInput,
-  SectionTitle,
-  Select,
-  Stat,
-} from "./shared";
+import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, SectionTitle, Select, Stat, contactLabel } from "./shared";
 import {
   DISPUTE_REASON_SHORT,
   DISPUTE_STATUS_TONE,
@@ -45,7 +35,8 @@ interface ShopRow {
   requiredBalancePaise: number;
   onTrial: boolean;
   lowBalance: boolean;
-  owner: { phoneNumber: string; name: string | null };
+  contactPhone: string | null;
+  owner: { phoneNumber: string | null; email: string | null; name: string | null };
   _count: { bids: number; deals: number };
 }
 
@@ -134,7 +125,7 @@ export function ShopsTab() {
       cell: (s) => (
         <>
           <p className="font-medium text-neutral-900 dark:text-neutral-100">{s.shopName}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">{s.owner.phoneNumber}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">{s.contactPhone || contactLabel(s.owner)}</p>
         </>
       ),
     },
@@ -196,7 +187,7 @@ export function ShopsTab() {
             setQ(v);
             setSkip(0);
           }}
-          placeholder="Search name, address, phone…"
+          placeholder="Search name, address, phone or email…"
         />
         <Select
           value={category}
@@ -319,7 +310,7 @@ function ShopDetailPanel({
         ) : (
           <div className="mt-4 flex flex-col gap-4">
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              {detail.shop.address} · {detail.shop.owner.phoneNumber}
+              {detail.shop.address} · {detail.shop.contactPhone || contactLabel(detail.shop.owner)}
             </p>
 
             <div className="flex flex-wrap items-center gap-1.5">

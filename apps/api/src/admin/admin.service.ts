@@ -96,7 +96,9 @@ export class AdminService {
         include: {
           bids: { select: { id: true } },
           deal: { select: { id: true, feeAmountPaise: true, feeStatus: true } },
-          customer: { select: { id: true, phoneNumber: true, name: true } },
+          customer: {
+            select: { id: true, phoneNumber: true, email: true, name: true },
+          },
           productCategory: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -156,7 +158,13 @@ export class AdminService {
             OR: [
               { shopName: { contains: opts.q, mode: 'insensitive' as const } },
               { address: { contains: opts.q, mode: 'insensitive' as const } },
+              { contactPhone: { contains: opts.q } },
               { owner: { phoneNumber: { contains: opts.q } } },
+              {
+                owner: {
+                  email: { contains: opts.q, mode: 'insensitive' as const },
+                },
+              },
             ],
           }
         : {}),
@@ -166,7 +174,9 @@ export class AdminService {
       this.prisma.db.shop.findMany({
         where,
         include: {
-          owner: { select: { id: true, phoneNumber: true, name: true } },
+          owner: {
+            select: { id: true, phoneNumber: true, email: true, name: true },
+          },
           _count: { select: { bids: true, deals: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -225,6 +235,7 @@ export class AdminService {
         ? {
             OR: [
               { phoneNumber: { contains: opts.q } },
+              { email: { contains: opts.q, mode: 'insensitive' as const } },
               { name: { contains: opts.q, mode: 'insensitive' as const } },
             ],
           }
@@ -240,6 +251,7 @@ export class AdminService {
         select: {
           id: true,
           phoneNumber: true,
+          email: true,
           name: true,
           role: true,
           createdAt: true,
@@ -270,7 +282,13 @@ export class AdminService {
       where: { id: shopId },
       include: {
         owner: {
-          select: { id: true, phoneNumber: true, name: true, createdAt: true },
+          select: {
+            id: true,
+            phoneNumber: true,
+            email: true,
+            name: true,
+            createdAt: true,
+          },
         },
         _count: { select: { bids: true, deals: true } },
       },
@@ -695,7 +713,14 @@ export class AdminService {
             include: {
               shop: { select: { id: true, shopName: true } },
               request: { select: { productName: true } },
-              customer: { select: { id: true, phoneNumber: true, name: true } },
+              customer: {
+                select: {
+                  id: true,
+                  phoneNumber: true,
+                  email: true,
+                  name: true,
+                },
+              },
             },
           },
         },

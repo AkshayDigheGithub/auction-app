@@ -111,9 +111,16 @@ enum DisputeStatus {
   dismissed
 }
 
+// A user is identified by a phone number, an email, or both — never neither.
+//
+// Phone was the only identifier while OTP was the only way in (AUC-7). Google
+// sign-in (AUC-85) arrives with a verified email and no phone, so both columns
+// are nullable and a CHECK constraint in the migration enforces "at least one".
+// Postgres allows many NULLs in a unique index, so both stay unique.
 model User {
   id          String   @id @default(cuid())
-  phoneNumber String   @unique @map("phone_number")
+  phoneNumber String?  @unique @map("phone_number")
+  email       String?  @unique
   name        String?
   role        Role
   createdAt   DateTime @default(now()) @map("created_at")
@@ -141,6 +148,16 @@ model Shop {
   // a shop could register as `jewellery` (0.30%) and take electronics deals cheap.
   secondaryCategories ShopCategory[] @default([]) @map("secondary_categories")
   upiId        String?      @map("upi_id")
+  // How an admin reaches this shop: to verify it exists (spec §4 does that by
+  // phone call) and to work a dispute — `shop_unreachable` and
+  // `customer_no_show` both need someone contactable at the other end.
+  //
+  // Lives here rather than on User because User.phoneNumber is globally
+  // unique, and family-run shops routinely share one number between owners,
+  // or use a number that is already a customer account. Deliberately not
+  // unique, and not OTP-verified for the pilot (AUC-89) — admin verification
+  // is what catches a bad number while SMS stays at zero.
+  contactPhone String?      @map("contact_phone")
   verified     Boolean      @default(false)
   photoUrl     String?      @map("photo_url")
   gstNumber    String?      @map("gst_number")

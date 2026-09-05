@@ -1,13 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import { useClerk } from "@clerk/nextjs";
 import { useAuth } from "@/lib/auth-context";
+import { CLERK_ENABLED } from "@/lib/clerk";
 
 const ROLE_LABEL: Record<string, string> = {
   customer: "Customer",
   shop_owner: "Shop Owner",
   admin: "Admin",
 };
+
+const logoutClass =
+  "text-neutral-400 underline decoration-dotted underline-offset-2 transition hover:text-neutral-600 dark:hover:text-neutral-200";
+
+/**
+ * Signing out has to clear both sessions. Dropping only our own token leaves
+ * Clerk's session live, so the next tap on "sign in" silently resumes the
+ * account that just left — which on a shared phone, common enough among the
+ * shop owners this is aimed at, signs the wrong person in.
+ */
+function ClerkLogout({ onLogout }: { onLogout: () => void }) {
+  const { signOut } = useClerk();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onLogout();
+        void signOut();
+      }}
+      className={logoutClass}
+    >
+      Log out
+    </button>
+  );
+}
+
+function PlainLogout({ onLogout }: { onLogout: () => void }) {
+  return (
+    <button type="button" onClick={onLogout} className={logoutClass}>
+      Log out
+    </button>
+  );
+}
+
+// useClerk() throws outside a ClerkProvider, and the provider is only mounted
+// when Clerk is configured. CLERK_ENABLED is a build-time constant, so picking
+// the component here keeps each one's hook order stable.
+const LogoutButton = CLERK_ENABLED ? ClerkLogout : PlainLogout;
 
 export function AppHeader() {
   const { user, logout } = useAuth();
@@ -30,13 +70,7 @@ export function AppHeader() {
           <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
             {ROLE_LABEL[user.role] ?? user.role}
           </span>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-neutral-400 underline decoration-dotted underline-offset-2 transition hover:text-neutral-600 dark:hover:text-neutral-200"
-          >
-            Log out
-          </button>
+          <LogoutButton onLogout={logout} />
         </div>
       )}
     </header>
