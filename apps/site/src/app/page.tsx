@@ -1,6 +1,20 @@
+import type { Metadata } from "next";
 import { Faq } from "@/components/faq";
 import { Card, Eyebrow, Heading, Lead, Section } from "@/components/sections";
 import { CUSTOMER_LOGIN_URL, PILOT_CITY, SHOP_LOGIN_URL } from "@/lib/site";
+
+/**
+ * Title and description are inherited from the layout — this exists only to
+ * claim the canonical.
+ *
+ * The homepage is the one most likely to be reached by several URLs that are
+ * the same page: with and without a trailing slash, with campaign parameters,
+ * and on both the apex and any www or preview host. Naming the canonical once
+ * means those all consolidate here instead of competing with each other.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function HomePage() {
   return (

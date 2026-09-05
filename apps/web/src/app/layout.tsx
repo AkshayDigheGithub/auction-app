@@ -19,9 +19,35 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * The app subdomain, as an absolute origin. Without metadataBase, Next resolves
+ * Open Graph and canonical URLs against localhost and warns at build time.
+ *
+ * Hardcoded for production rather than read from vercel.json's build.env: that
+ * key silently disables Vercel's Next.js framework preset (see APP_URL in
+ * apps/site/src/lib/site.ts for the same trap). NEXT_PUBLIC_APP_URL still wins
+ * where it is set.
+ */
+const APP_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://app.mivikto.store"
+    : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_ORIGIN),
   title: "mivikto.store",
   description: "Post what you want to buy, let nearby shops bid on it.",
+  // This app is a signed-in tool, not content, and every route under it shares
+  // this one title — indexing twelve near-identical pages would compete with
+  // the marketing site on the apex for the site's own brand terms.
+  //
+  // This is the authoritative exclusion, not robots.ts. robots.ts deliberately
+  // allows crawling so that this tag can actually be read; a Disallow there
+  // would hide it and leave the URLs eligible for bare, description-less
+  // listings. See the comment in apps/web/src/app/robots.ts before changing
+  // either one.
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

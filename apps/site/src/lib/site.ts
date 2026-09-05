@@ -20,6 +20,23 @@ export const APP_URL =
     : "http://localhost:3000");
 
 /**
+ * This site's own public origin — the apex, where the marketing site lives.
+ *
+ * Needed as an absolute URL rather than a relative path because canonical tags,
+ * Open Graph URLs and sitemap entries are all meaningless relative: a canonical
+ * resolving to localhost is worse than no canonical, because it tells a crawler
+ * the real page is a duplicate of something it cannot reach.
+ *
+ * Mirrors APP_URL's shape so the two are read the same way. In development it
+ * points at this site's own dev port (3002), not the app's (3000).
+ */
+export const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://mivikto.store"
+    : "http://localhost:3002");
+
+/**
  * The pilot city, decided 2026-09-05 — closes spec §10 open decision #1.
  *
  * Setting this is not cosmetic: it switches the coverage section from "we are
@@ -59,6 +76,14 @@ export const CONTACT_EMAIL = "hello@example.com";
  * category, no live billing. Two landing pages would mean two half-empty pages
  * and double the FAQ and legal surface to keep in sync. Split later if the
  * scroll data actually asks for it.
+ *
+ * These are bare fragments, so every consumer must render them as `/${href}`.
+ * A bare `#how-it-works` is relative to the *current* page, which is correct on
+ * the homepage and dead everywhere else — on /privacy it resolves to
+ * /privacy#how-it-works, silently killing the whole header and footer nav on
+ * two of the three pages. Kept as fragments rather than absolute paths because
+ * they are anchors into the homepage, and writing them as "/#how-it-works" here
+ * would read as three separate routes.
  */
 export const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },

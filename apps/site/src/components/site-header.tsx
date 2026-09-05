@@ -19,7 +19,7 @@ export function SiteHeader() {
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
-              href={l.href}
+              href={`/${l.href}`}
               className="text-sm font-medium text-ink-600 transition hover:text-ink-900"
             >
               {l.label}
@@ -62,7 +62,7 @@ export function SiteHeader() {
             {NAV_LINKS.map((l) => (
               <Link
                 key={l.href}
-                href={l.href}
+                href={`/${l.href}`}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-2 py-2.5 text-base font-medium text-ink-800 transition hover:bg-ink-100"
               >

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { SITE_URL } from "@/lib/site";
 
 // Display face for headlines — it has enough character to not look like a
 // template, while staying legible at small sizes for the odd sub-heading.
@@ -22,6 +23,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for canonical and Open Graph URLs. Without it Next resolves
+  // them against localhost and warns at build time — and a canonical pointing
+  // at localhost is worse than none, since it names an unreachable page as the
+  // original this one duplicates.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "mivikto.store — Let local shops compete for your order",
     template: "%s · mivikto.store",
