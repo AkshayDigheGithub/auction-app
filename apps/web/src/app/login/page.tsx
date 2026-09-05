@@ -11,7 +11,7 @@ import {
   sendWidgetOtp,
   verifyWidgetOtp,
 } from "@/lib/msg91-widget";
-import { CLERK_ENABLED, SSO_CALLBACK_PATH } from "@/lib/clerk";
+import { CLERK_ENABLED, ssoCallbackUrl } from "@/lib/clerk";
 import { useAuth, type Role } from "@/lib/auth-context";
 import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
 
@@ -100,13 +100,16 @@ function ClerkSignIn({
 
     setStarting(true);
     try {
+      // Absolute, not a bare path — sso() parses these with the URL
+      // constructor. See ssoCallbackUrl() for why.
+      const callback = ssoCallbackUrl();
       const { error } = await signIn.sso({
         strategy: "oauth_google",
         // Both point at the callback route: it runs inside the popup, finishes
         // the handshake and closes itself. The login screen is still open in
         // the parent window, where the effect above picks the session up.
-        redirectUrl: SSO_CALLBACK_PATH,
-        redirectCallbackUrl: SSO_CALLBACK_PATH,
+        redirectUrl: callback,
+        redirectCallbackUrl: callback,
         popup,
       });
       if (error) {
