@@ -110,16 +110,18 @@ single blocker behind everything else in this tier.
     [technical-audit.md](technical-audit.md) finding B3 for exactly what this
     did and did not unblock — it is not everything that was filed under "wait
     for the city" before today.
-18. **Replace the placeholder phone and email** (B2). Still blocked on a real
-    staffed line, not on code, and not on the city — `example.com` is still
-    rendering on every public page. This is now the binding blocker behind
-    `Organization.contactPoint`, any Google Business Profile, and any future
-    reconsideration of on-page contact trust signals. Nothing about the Pune
-    decision moves this forward.
-19. **A Google Business Profile for mivikto.** Blocked on item 18, not on the
-    city and not on shop density — a profile needs a real, verifiable phone
-    number and address, neither of which exists yet. For "near me" queries this
-    is likely worth more than anything on-page; see [strategy.md](strategy.md).
+18. **~~Replace the placeholder phone and email~~ — done, 2026-09-06.** (B2)
+    `CONTACT_EMAIL` is now `contact@mivikto.store` and `CONTACT_PHONE` is
+    `+91 9503 928792`; no `example.com` address renders anywhere, and both sit
+    on the site's own domain. One follow-up, a judgement call rather than code,
+    and it gates the *structured data* rather than the footer: confirm the line
+    is actually answered. See [technical-audit.md](technical-audit.md) B2.
+19. **A Google Business Profile for mivikto.** No longer blocked on item 18. It
+    still needs a **verifiable address**, which a platform with no premises does
+    not obviously have — resolve that before starting, and note it is the same
+    "no premises" fact that keeps `LocalBusiness` markup closed. Not blocked on
+    the city or on shop density. For "near me" queries this is likely worth more
+    than anything on-page; see [strategy.md](strategy.md).
     Note this is a profile for **mivikto**, not for any individual shop — see
     [structured-data.md](structured-data.md) on why per-shop listings are off
     the table regardless of density.

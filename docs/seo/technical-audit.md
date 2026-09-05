@@ -24,18 +24,25 @@ The only robots directive in the entire repository is
 
 Consequence: nothing to submit to Search Console, and no crawl guidance anywhere.
 
-### B2 — Placeholder contact details are live on every public page
+### B2 — Placeholder contact details are live on every public page — RESOLVED
 
-`CONTACT_PHONE` is `+91 9503 928792` and `CONTACT_EMAIL` is `hello@example.com`
-in [`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts). Both
-render in the footer on every page, plus the 404, the error page, `/privacy`
-and `/terms`.
+`CONTACT_PHONE` is `+91 9503 928792` and `CONTACT_EMAIL` is
+`contact@mivikto.store` in
+[`apps/site/src/lib/site.ts:74-75`](../../apps/site/src/lib/site.ts). Both are
+real as of 2026-09-06; the `example.com` address is gone. They render in the
+footer on every page, plus the 404, the error page, `/privacy` and `/terms`.
 
-The comment above them already says to replace them before the site goes public.
-Beyond the trust cost of shipping an `example.com` address to a phone-first
-audience that the spec says trusts a voice on the line (spec §4), this blocks
-`Organization.contactPoint` markup and any NAP consistency with a Google
-Business Profile.
+The email is on the same domain as the site, so it carries no second
+registration to keep alive — worth noting because the alternative was briefly
+on the table and would have made a silent bounce possible.
+
+This unblocks `Organization.contactPoint` markup and NAP consistency with a
+Google Business Profile — see [structured-data.md](structured-data.md).
+
+One caveat, which is a judgement call rather than a code problem and does not
+reopen this blocker: "real" has to mean *answered*. The spec's audience trusts a
+voice on the line (spec §4), and `contactPoint` markup puts the number into
+Google's knowledge graph, where it is much harder to retract than a footer edit.
 
 **Blocked on a real staffed phone line, not on engineering.**
 

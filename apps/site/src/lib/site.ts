@@ -60,14 +60,19 @@ export const CUSTOMER_LOGIN_URL = `${APP_URL}/login?role=customer`;
 export const SHOP_LOGIN_URL = `${APP_URL}/login?role=shop_owner`;
 
 /**
- * PLACEHOLDER — replace before this site goes public.
+ * Real, staffed contact details — no longer placeholders.
  *
  * This audience trusts a voice on the phone, not a contact form. A number that
- * nobody answers is worse than no number at all, so this must be a line that is
- * actually staffed.
+ * nobody answers is worse than no number at all, so this must stay a line that
+ * is actually staffed; the same goes for the inbox.
+ *
+ * The email is deliberately on the same domain as the site. An address on a
+ * different TLD would depend on a second registration staying alive, and if it
+ * lapsed the bounce would be silent while the address kept rendering on every
+ * public page.
  */
 export const CONTACT_PHONE = "+91 9503 928792";
-export const CONTACT_EMAIL = "hello@example.com";
+export const CONTACT_EMAIL = "contact@mivikto.store";
 
 /**
  * Anchors on the single homepage rather than separate routes.
