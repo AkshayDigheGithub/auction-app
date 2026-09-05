@@ -12,7 +12,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
           <Logo />
-          <span className="font-display text-lg font-bold text-ink-900">Nearby Bids</span>
+          <span className="font-display text-lg font-bold text-ink-900">mivikto.store</span>
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">

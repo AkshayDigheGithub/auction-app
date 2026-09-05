@@ -6,7 +6,7 @@ export function SiteFooter() {
     <footer className="border-t border-ink-200 bg-white px-5 py-12 sm:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 md:flex-row md:justify-between">
         <div className="max-w-sm">
-          <p className="font-display text-lg font-bold text-ink-900">Nearby Bids</p>
+          <p className="font-display text-lg font-bold text-ink-900">mivikto.store</p>
           <p className="mt-2 text-sm leading-relaxed text-ink-500">
             Post what you want to buy. Shops near you send their best price.
           </p>
@@ -51,7 +51,7 @@ export function SiteFooter() {
 
       <div className="mx-auto mt-10 max-w-6xl border-t border-ink-200 pt-6">
         <p className="text-xs leading-relaxed text-ink-400">
-          © {new Date().getFullYear()} Nearby Bids. Currently running as a pilot — features and pricing may change,
+          © {new Date().getFullYear()} mivikto.store. Currently running as a pilot — features and pricing may change,
           and we will tell shop owners before anything starts costing money.
         </p>
       </div>

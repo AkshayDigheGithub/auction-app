@@ -23,8 +23,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nearby Bids — Let local shops compete for your order",
-    template: "%s · Nearby Bids",
+    default: "mivikto.store — Let local shops compete for your order",
+    template: "%s · mivikto.store",
   },
   // No timing claim in either description. "Collect it the same day" used to
   // sit here, which promised a bid speed the FAQ deliberately refuses to
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   description:
     "Post what you want to buy. Shops near you send their best price. You pick one and collect it in person — no delivery wait, no haggling shop to shop.",
   openGraph: {
-    title: "Nearby Bids — Let local shops compete for your order",
+    title: "mivikto.store — Let local shops compete for your order",
     description:
       "Post what you want to buy. Shops near you send their best price. Pick one and collect it in person.",
     type: "website",
