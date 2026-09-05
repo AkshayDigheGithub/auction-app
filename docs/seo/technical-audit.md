@@ -26,7 +26,7 @@ Consequence: nothing to submit to Search Console, and no crawl guidance anywhere
 
 ### B2 — Placeholder contact details are live on every public page
 
-`CONTACT_PHONE` is `+91 00000 00000` and `CONTACT_EMAIL` is `hello@example.com`
+`CONTACT_PHONE` is `+91 9503 928792` and `CONTACT_EMAIL` is `hello@example.com`
 in [`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts). Both
 render in the footer on every page, plus the 404, the error page, `/privacy`
 and `/terms`.

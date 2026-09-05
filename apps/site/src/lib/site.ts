@@ -66,7 +66,7 @@ export const SHOP_LOGIN_URL = `${APP_URL}/login?role=shop_owner`;
  * nobody answers is worse than no number at all, so this must be a line that is
  * actually staffed.
  */
-export const CONTACT_PHONE = "+91 00000 00000";
+export const CONTACT_PHONE = "+91 9503 928792";
 export const CONTACT_EMAIL = "hello@example.com";
 
 /**

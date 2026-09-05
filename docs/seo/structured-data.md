@@ -75,7 +75,7 @@ producing the OG image, so do them together.
 
 `contactPoint` is **blocked on B2** — the phone and email in
 [`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts) are
-placeholders (`+91 00000 00000`, `hello@example.com`) that currently render live
+placeholders (`+91 9503 928792`, `hello@example.com`) that currently render live
 on every page. Publishing those as structured contact data would put a fake
 number into Google's knowledge graph. Ship `Organization` without `contactPoint`
 now; add it the day a real staffed line exists.
