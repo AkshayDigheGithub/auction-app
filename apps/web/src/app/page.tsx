@@ -28,6 +28,9 @@ export default function Home() {
         </p>
       </div>
 
+      {/* No admin entry point here on purpose. Staff reach the dashboard at
+          /login?role=admin directly; the role and the route still work, they
+          are just not advertised to every customer who opens the app. */}
       <div className="flex flex-col gap-3">
         <Link
           href="/login?role=customer"
@@ -40,12 +43,6 @@ export default function Home() {
           className="rounded-xl border border-orange-600 px-4 py-4 text-center font-medium text-orange-600 transition active:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:active:bg-orange-950/40"
         >
           I&apos;m a Shop Owner
-        </Link>
-        <Link
-          href="/login?role=admin"
-          className="px-4 py-2 text-center text-sm text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
-        >
-          Admin sign in
         </Link>
       </div>
     </main>
