@@ -6,7 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GeoService } from '../geo/geo.service';
+import {
+  GeoService,
+  type ShopExclusionReason,
+  type ShopMatchResult,
+} from '../geo/geo.service';
 import type { ShopCategoryName } from '../pricing/pricing.service';
 import { isLiveBilling } from '../pricing/billing-mode';
 import { FREE_DEALS_PER_SHOP } from '../deals/billing.constants';
@@ -19,6 +23,14 @@ import { PushService } from '../push/push.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 
 const DEFAULT_RADIUS_KM = 5;
+
+/** Count of shops dropped for one specific reason, for the AUC-95 instrumentation. */
+function countExcluded(
+  excluded: ShopMatchResult['excluded'],
+  reason: ShopExclusionReason,
+): number {
+  return excluded.filter((e) => e.reason === reason).length;
+}
 
 @Injectable()
 export class RequestsService {
@@ -46,19 +58,9 @@ export class RequestsService {
       longitude = geocoded.longitude;
     }
 
-    // Which kinds of shop can serve this request (AUC-59). Null when the
-    // customer didn't pick a category, which matches every shop as before.
-    let matchCategories: ShopCategoryName[] | undefined;
-    if (dto.productCategoryId) {
-      const pc = await this.prisma.db.productCategory.findUnique({
-        where: { id: dto.productCategoryId },
-        select: { id: true, active: true, shopCategories: true },
-      });
-      if (!pc || !pc.active) {
-        throw new BadRequestException('That product category is not available');
-      }
-      matchCategories = pc.shopCategories;
-    }
+    const { categories: matchCategories } = await this.resolveMatchCategories(
+      dto.productCategoryId,
+    );
 
     const request = await this.prisma.db.request.create({
       data: {
@@ -83,20 +85,42 @@ export class RequestsService {
 
     // Balance gating only bites in live billing — in shadow mode nothing is
     // charged, so nothing should be withheld (AUC-53).
+    const enforceBalance = isLiveBilling();
     const { eligible, excluded } = this.geo.partitionByEligibility(matched, {
-      enforceBalance: isLiveBilling(),
+      enforceBalance,
       freeDealsPerShop: FREE_DEALS_PER_SHOP,
     });
+
+    // Only worth a second query when a category actually narrowed the match —
+    // without one, "in radius" and "matched" are the same set by definition
+    // (AUC-95).
+    const inRadiusShopCount = matchCategories
+      ? await this.geo.countShopsInRadius(latitude, longitude, radiusKm)
+      : matched.length;
 
     // Persist the match outcome so admin can find these later (AUC-59). A
     // request that reaches nobody is invisible from the outside — the customer
     // just sees a bid list that never fills — so it has to be recorded at post
     // time rather than inferred afterwards.
+    //
+    // The radius and the exclusion split alongside it are the AUC-95
+    // instrumentation. They are written here, in the same update, because they
+    // describe the same single matching event — recording them separately would
+    // let a request exist with a match count but no radius to interpret it
+    // against, which is worse than no data.
     await this.prisma.db.request.update({
       where: { id: request.id },
       data: {
         matchedShopCount: matched.length,
         notifiedShopCount: eligible.length,
+        matchRadiusKm: radiusKm,
+        inRadiusShopCount,
+        excludedSuspendedCount: countExcluded(excluded, 'suspended'),
+        excludedInsufficientBalanceCount: countExcluded(
+          excluded,
+          'insufficient_balance',
+        ),
+        balanceEnforced: enforceBalance,
       },
     });
 
@@ -144,6 +168,73 @@ export class RequestsService {
     }
 
     return request;
+  }
+
+  /**
+   * Which kinds of shop can serve a given product category (AUC-59), plus the
+   * category's display name.
+   *
+   * Shared by createRequest and countNearbyShops on purpose: the pre-post count
+   * (AUC-93) is a promise about who will be woken up, so it has to be computed
+   * from the same category expansion the real match uses. Two copies of this
+   * would drift, and the visible symptom would be the app promising bidders it
+   * then fails to notify.
+   *
+   * Undefined categories mean "no category picked", which matches every shop, as
+   * it did before categories existed.
+   */
+  private async resolveMatchCategories(productCategoryId?: string): Promise<{
+    categories?: ShopCategoryName[];
+    categoryName: string | null;
+  }> {
+    if (!productCategoryId)
+      return { categories: undefined, categoryName: null };
+
+    const pc = await this.prisma.db.productCategory.findUnique({
+      where: { id: productCategoryId },
+      select: { id: true, name: true, active: true, shopCategories: true },
+    });
+    if (!pc || !pc.active) {
+      throw new BadRequestException('That product category is not available');
+    }
+    return { categories: pc.shopCategories, categoryName: pc.name };
+  }
+
+  /**
+   * How many shops would actually be notified if this request were posted here
+   * and now (AUC-93).
+   *
+   * Returns a count and nothing else. Shop identity — name, address, phone —
+   * stays hidden until deal lock, and that is not a privacy nicety: hidden
+   * identity is what forces request → bid → lock, which is the only point the
+   * platform earns anything. A list here would be a free directory around the
+   * auction.
+   *
+   * Counts *eligible* shops, not raw in-radius ones, so the number cannot
+   * overpromise: a suspended or unfunded shop is not going to bid, and
+   * including it would show a customer supply that does not exist for them.
+   */
+  async countNearbyShops(
+    latitude: number,
+    longitude: number,
+    productCategoryId?: string,
+  ): Promise<{ count: number; radiusKm: number; categoryName: string | null }> {
+    const { categories, categoryName } =
+      await this.resolveMatchCategories(productCategoryId);
+
+    const radiusKm = DEFAULT_RADIUS_KM;
+    const matched = await this.geo.findShopsNearby(
+      latitude,
+      longitude,
+      radiusKm,
+      categories,
+    );
+    const { eligible } = this.geo.partitionByEligibility(matched, {
+      enforceBalance: isLiveBilling(),
+      freeDealsPerShop: FREE_DEALS_PER_SHOP,
+    });
+
+    return { count: eligible.length, radiusKm, categoryName };
   }
 
   async getRequest(id: string) {

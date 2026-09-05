@@ -39,6 +39,31 @@ function page(opts: PageOpts) {
   };
 }
 
+/**
+ * Distribution summary for the radius reach report (AUC-95).
+ *
+ * A mean alone would hide the case the pilot gate actually cares about: a
+ * handful of dense areas pulling the average up while most requests reach
+ * almost nobody. The percentiles are what make that visible.
+ */
+function summarise(values: number[]) {
+  if (!values.length) {
+    return { n: 0, min: null, p50: null, p90: null, max: null, mean: null };
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+  const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+  return {
+    n: sorted.length,
+    min: sorted[0],
+    p50: at(0.5),
+    p90: at(0.9),
+    max: sorted[sorted.length - 1],
+    mean: Math.round(mean * 100) / 100,
+  };
+}
+
 function dateRange(from?: string, to?: string) {
   if (!from && !to) return undefined;
   return {
@@ -107,6 +132,132 @@ export class AdminService {
       this.prisma.db.request.count({ where }),
     ]);
     return { rows, total, ...page(opts) };
+  }
+
+  /**
+   * Radius reach report (AUC-95) — the evidence for the day-30 call on whether
+   * the 5 km bid radius stays fixed, auto-expands, or becomes customer-adjustable.
+   *
+   * Two deliberate choices:
+   *
+   * Requests posted before the instrumentation shipped are counted separately
+   * and excluded from every statistic. Their radius is unknown, not 5, and
+   * folding an assumption into the sample would corrupt the one number the
+   * pilot gate turns on.
+   *
+   * Bids, first-bid latency and lock are derived from the bid and deal rows
+   * rather than denormalised onto the request. They keep changing after the
+   * request is posted, so a copy would be a stale copy; the match counts beside
+   * them are frozen precisely because they describe a moment.
+   */
+  async radiusReachReport(opts: { from?: string; to?: string } = {}) {
+    const range = dateRange(opts.from, opts.to);
+    const where = {
+      ...(range ? { createdAt: range } : {}),
+    };
+
+    const rows = await this.prisma.db.request.findMany({
+      where,
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        productCategoryId: true,
+        matchRadiusKm: true,
+        inRadiusShopCount: true,
+        matchedShopCount: true,
+        notifiedShopCount: true,
+        excludedSuspendedCount: true,
+        excludedInsufficientBalanceCount: true,
+        balanceEnforced: true,
+        bids: { select: { createdAt: true } },
+        deal: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const instrumented = rows.filter((r) => r.matchRadiusKm != null);
+
+    // Grouped by the radius actually used, so the report stays honest if the
+    // default ever moves or auto-expansion (AUC-96) starts varying it per
+    // request.
+    const byRadius = [...new Set(instrumented.map((r) => r.matchRadiusKm!))]
+      .sort((a, b) => a - b)
+      .map((radiusKm) => {
+        const at = instrumented.filter((r) => r.matchRadiusKm === radiusKm);
+        const bidCounts = at.map((r) => r.bids.length);
+        const firstBidSeconds = at
+          .map((r) => {
+            if (!r.bids.length) return null;
+            const first = Math.min(...r.bids.map((b) => b.createdAt.getTime()));
+            return (first - r.createdAt.getTime()) / 1000;
+          })
+          .filter((s): s is number => s != null);
+
+        return {
+          radiusKm,
+          requests: at.length,
+          matchedShopsPerRequest: summarise(
+            at.map((r) => r.matchedShopCount ?? 0),
+          ),
+          notifiedShopsPerRequest: summarise(
+            at.map((r) => r.notifiedShopCount ?? 0),
+          ),
+          bidsPerRequest: summarise(bidCounts),
+          requestsWithNoBid: bidCounts.filter((n) => n === 0).length,
+          secondsToFirstBid: summarise(firstBidSeconds),
+          reachedLock: at.filter((r) => r.deal != null).length,
+        };
+      });
+
+    // The whole point of the split: these three have opposite fixes. Widening
+    // the radius does nothing for a catalogue-mapping gap, and topping up
+    // wallets does nothing for an empty map.
+    const zeroReach = instrumented.filter(
+      (r) => (r.notifiedShopCount ?? 0) === 0,
+    );
+    const attributed = {
+      total: zeroReach.length,
+      noShopInRadius: zeroReach.filter((r) => (r.inRadiusShopCount ?? 0) === 0)
+        .length,
+      noShopServesCategory: zeroReach.filter(
+        (r) =>
+          (r.inRadiusShopCount ?? 0) > 0 && (r.matchedShopCount ?? 0) === 0,
+      ).length,
+      allNearbySuspended: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) === 0,
+      ).length,
+      allNearbyUnfunded: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) === 0,
+      ).length,
+      mixedExclusions: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) > 0,
+      ).length,
+    };
+
+    return {
+      window: { from: opts.from ?? null, to: opts.to ?? null },
+      instrumentedRequests: instrumented.length,
+      // Reported, not hidden: if this dwarfs the instrumented count the report
+      // is not yet decision-grade and the gate should not be called on it.
+      uninstrumentedRequests: rows.length - instrumented.length,
+      // Balance gating is only enforced in live billing, so in shadow mode an
+      // unfunded-shop count of zero means "never checked", not "all funded".
+      balanceEnforcedRequests: instrumented.filter(
+        (r) => r.balanceEnforced === true,
+      ).length,
+      byRadius,
+      zeroReach: attributed,
+    };
   }
 
   async listDeals(
