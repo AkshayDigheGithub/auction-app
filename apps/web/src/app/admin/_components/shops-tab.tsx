@@ -35,6 +35,7 @@ interface ShopRow {
   requiredBalancePaise: number;
   onTrial: boolean;
   lowBalance: boolean;
+  contactPhone: string | null;
   owner: { phoneNumber: string | null; email: string | null; name: string | null };
   _count: { bids: number; deals: number };
 }
@@ -124,7 +125,7 @@ export function ShopsTab() {
       cell: (s) => (
         <>
           <p className="font-medium text-neutral-900 dark:text-neutral-100">{s.shopName}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">{contactLabel(s.owner)}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">{s.contactPhone || contactLabel(s.owner)}</p>
         </>
       ),
     },
@@ -309,7 +310,7 @@ function ShopDetailPanel({
         ) : (
           <div className="mt-4 flex flex-col gap-4">
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              {detail.shop.address} · {contactLabel(detail.shop.owner)}
+              {detail.shop.address} · {detail.shop.contactPhone || contactLabel(detail.shop.owner)}
             </p>
 
             <div className="flex flex-wrap items-center gap-1.5">

@@ -158,6 +158,7 @@ export class AdminService {
             OR: [
               { shopName: { contains: opts.q, mode: 'insensitive' as const } },
               { address: { contains: opts.q, mode: 'insensitive' as const } },
+              { contactPhone: { contains: opts.q } },
               { owner: { phoneNumber: { contains: opts.q } } },
               {
                 owner: {
