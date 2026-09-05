@@ -126,6 +126,22 @@ export class AdminController {
     });
   }
 
+  // -------------------------------------------------------------- reports
+
+  /**
+   * Radius reach report (AUC-95) — matched/notified shops per request, bids per
+   * request, and the zero-reach breakdown that separates a geography problem
+   * from a catalogue one from a billing one.
+   *
+   * Feeds the day-30 decision on the bid radius. It reads requests, bids and
+   * deals for the window rather than paging, because a percentile over one page
+   * of results is not a percentile.
+   */
+  @Get('reports/radius-reach')
+  radiusReachReport(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.adminService.radiusReachReport({ from, to });
+  }
+
   // --------------------------------------------------------------- export
 
   /** CSV export respecting the same filters as the list views (AUC-71). */
