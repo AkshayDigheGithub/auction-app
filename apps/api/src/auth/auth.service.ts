@@ -10,7 +10,7 @@ import { randomInt } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OTP_PROVIDER, type OtpProvider } from './otp-provider.interface';
 import { Msg91WidgetService } from './msg91-widget.service';
-import { GoogleAuthService } from './google-auth.service';
+import { ClerkAuthService } from './clerk-auth.service';
 
 interface PendingOtp {
   code: string;
@@ -19,7 +19,7 @@ interface PendingOtp {
 
 /**
  * How a caller proved who they are: a phone number (our OTP or MSG91's) or an
- * email address (a Google ID token). Both are already verified by the time they
+ * email address (a Clerk session token). Both are already verified by the time they
  * reach issueSession — it never checks a credential, it only decides which
  * unique column to key the user on.
  */
@@ -69,7 +69,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(OTP_PROVIDER) private readonly otpProvider: OtpProvider,
     private readonly msg91Widget: Msg91WidgetService,
-    private readonly googleAuth: GoogleAuthService,
+    private readonly clerkAuth: ClerkAuthService,
   ) {}
 
   async requestOtp(phoneNumber: string): Promise<{ devCode?: string }> {
@@ -129,16 +129,16 @@ export class AuthService {
   }
 
   /**
-   * Google flow: the browser sends only the ID token Google issued. The email
-   * comes back from Google's verified payload and is never read off the
-   * request — see GoogleAuthService for why that matters.
+   * Clerk flow: the browser sends only the session token Clerk issued. The
+   * email is resolved from Clerk and never read off the request — see
+   * ClerkAuthService for why that matters.
    */
-  async verifyGoogleToken(
-    idToken: string,
+  async verifyClerkToken(
+    sessionToken: string,
     role: 'customer' | 'shop_owner' | 'admin',
     name?: string,
   ) {
-    const email = await this.googleAuth.verifyIdToken(idToken);
+    const email = await this.clerkAuth.verifySessionToken(sessionToken);
     return this.issueSession({ kind: 'email', email }, role, name);
   }
 

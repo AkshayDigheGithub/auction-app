@@ -1,7 +1,7 @@
 export interface JwtPayload {
   sub: string;
   /**
-   * Null for a user who signed in with Google and has given no phone number
+   * Null for a user who signed in through Clerk and has given no phone number
    * (AUC-85). Nothing on the API authorises on this — guards read `sub` and
    * `role` — but it is carried so /auth/me can identify the session.
    */

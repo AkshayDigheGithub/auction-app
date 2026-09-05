@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { VerifyWidgetTokenDto } from './dto/verify-widget-token.dto';
-import { VerifyGoogleTokenDto } from './dto/verify-google-token.dto';
+import { VerifyClerkTokenDto } from './dto/verify-clerk-token.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
@@ -37,10 +37,14 @@ export class AuthController {
     );
   }
 
-  /** Google sign-in: exchange a Google ID token for one of our sessions (AUC-87). */
-  @Post('google/verify')
-  verifyGoogleToken(@Body() dto: VerifyGoogleTokenDto) {
-    return this.authService.verifyGoogleToken(dto.idToken, dto.role, dto.name);
+  /** Clerk sign-in: exchange a Clerk session token for one of ours (AUC-87). */
+  @Post('clerk/verify')
+  verifyClerkToken(@Body() dto: VerifyClerkTokenDto) {
+    return this.authService.verifyClerkToken(
+      dto.sessionToken,
+      dto.role,
+      dto.name,
+    );
   }
 
   @UseGuards(JwtAuthGuard)

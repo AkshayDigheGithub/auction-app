@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { OtpProvider } from './otp-provider.interface';
 import type { Msg91WidgetService } from './msg91-widget.service';
-import type { GoogleAuthService } from './google-auth.service';
+import type { ClerkAuthService } from './clerk-auth.service';
 import type { JwtService } from '@nestjs/jwt';
 
 function makeService() {
@@ -20,7 +20,7 @@ function makeService() {
     {} as JwtService,
     otpProvider,
     {} as Msg91WidgetService,
-    {} as GoogleAuthService,
+    {} as ClerkAuthService,
   );
   return { service, sent };
 }
@@ -136,7 +136,7 @@ function makeVerifiableService(options: { failFirstUpsert?: boolean } = {}) {
     jwtService,
     otpProvider,
     {} as Msg91WidgetService,
-    {} as GoogleAuthService,
+    {} as ClerkAuthService,
   );
   return { service, sent };
 }
@@ -189,12 +189,12 @@ describe('AuthService.verifyOtp — when the code is consumed', () => {
 });
 
 /**
- * Google sign-in (AUC-87). The service under test never sees a Google token —
- * GoogleAuthService is stubbed — so these cover what AuthService is actually
+ * Clerk sign-in (AUC-87). The service under test never sees a Clerk token —
+ * ClerkAuthService is stubbed — so these cover what AuthService is actually
  * responsible for: keying the session on the *verified* address, and applying
  * the same admin guard the phone paths get.
  */
-function makeGoogleService(
+function makeClerkService(
   options: {
     verifiedEmail?: string;
     verifyError?: Error;
@@ -219,7 +219,7 @@ function makeGoogleService(
         }) => {
           lookups.push(where);
           return Promise.resolve({
-            id: 'user-google-1',
+            id: 'user-clerk-1',
             phoneNumber: where.phoneNumber ?? null,
             email: where.email ?? null,
             role: create.role,
@@ -230,31 +230,31 @@ function makeGoogleService(
     },
   } as unknown as PrismaService;
 
-  const googleAuth = {
-    verifyIdToken: () =>
+  const clerkAuth = {
+    verifySessionToken: () =>
       options.verifyError
         ? Promise.reject(options.verifyError)
         : Promise.resolve(options.verifiedEmail ?? 'shopkeeper@example.com'),
-  } as unknown as GoogleAuthService;
+  } as unknown as ClerkAuthService;
 
   const service = new AuthService(
     prisma,
     { sign: () => 'signed-token' } as unknown as JwtService,
     { sendOtp: () => Promise.resolve() },
     {} as Msg91WidgetService,
-    googleAuth,
+    clerkAuth,
   );
 
   return { service, lookups };
 }
 
-describe('AuthService.verifyGoogleToken', () => {
-  it('pins the session to the email Google verified', async () => {
-    const { service, lookups } = makeGoogleService({
+describe('AuthService.verifyClerkToken', () => {
+  it('pins the session to the email Clerk verified', async () => {
+    const { service, lookups } = makeClerkService({
       verifiedEmail: 'real@example.com',
     });
 
-    const res = await service.verifyGoogleToken('an-id-token', 'customer');
+    const res = await service.verifyClerkToken('a-session-token', 'customer');
 
     expect(res.token).toBe('signed-token');
     expect(res.user).toMatchObject({
@@ -269,10 +269,10 @@ describe('AuthService.verifyGoogleToken', () => {
 
   it('creates the user with no phone number', async () => {
     // The regression this guards: phone_number used to be NOT NULL, so a
-    // Google sign-in could not be written at all (AUC-86).
-    const { service } = makeGoogleService();
-    const res = await service.verifyGoogleToken(
-      'an-id-token',
+    // an email-only sign-in could not be written at all (AUC-86).
+    const { service } = makeClerkService();
+    const res = await service.verifyClerkToken(
+      'a-session-token',
       'customer',
       'Asha',
     );
@@ -281,35 +281,35 @@ describe('AuthService.verifyGoogleToken', () => {
   });
 
   it('surfaces a rejected token and issues nothing', async () => {
-    const { service, lookups } = makeGoogleService({
+    const { service, lookups } = makeClerkService({
       verifyError: new Error('Could not verify this login'),
     });
 
     await expect(
-      service.verifyGoogleToken('forged', 'customer'),
+      service.verifyClerkToken('forged', 'customer'),
     ).rejects.toThrow('Could not verify this login');
     // Nothing was looked up or created off an unverified token.
     expect(lookups).toHaveLength(0);
   });
 
   it('refuses admin self-registration, exactly as the phone paths do', async () => {
-    const { service } = makeGoogleService({
+    const { service } = makeClerkService({
       verifiedEmail: 'nobody@example.com',
     });
 
     await expect(
-      service.verifyGoogleToken('an-id-token', 'admin'),
+      service.verifyClerkToken('a-session-token', 'admin'),
     ).rejects.toThrow('Admin accounts cannot self-register');
   });
 
-  it('lets an existing admin sign in with Google', async () => {
-    const { service } = makeGoogleService({
+  it('lets an existing admin sign in through Clerk', async () => {
+    const { service } = makeClerkService({
       verifiedEmail: 'boss@example.com',
       existingUser: { id: 'admin-1', email: 'boss@example.com', role: 'admin' },
     });
 
     await expect(
-      service.verifyGoogleToken('an-id-token', 'admin'),
+      service.verifyClerkToken('a-session-token', 'admin'),
     ).resolves.toMatchObject({
       token: 'signed-token',
     });

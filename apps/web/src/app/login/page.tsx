@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth as useClerkAuth, useSignIn } from "@clerk/nextjs";
 import { api, ApiError } from "@/lib/api";
 import {
   MSG91_WIDGET_ENABLED,
@@ -10,7 +11,7 @@ import {
   sendWidgetOtp,
   verifyWidgetOtp,
 } from "@/lib/msg91-widget";
-import { GOOGLE_SIGNIN_ENABLED, renderGoogleButton } from "@/lib/google-signin";
+import { CLERK_ENABLED, SSO_CALLBACK_PATH } from "@/lib/clerk";
 import { useAuth, type Role } from "@/lib/auth-context";
 import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
 
@@ -34,11 +35,107 @@ type AuthResponse = {
 /**
  * Phone OTP is parked rather than removed (AUC-85): it stays reachable so the
  * SMS path can be re-enabled or A/B tested without a revert. It is also the
- * automatic fallback wherever Google is not configured, which keeps local
- * development working with no Google Cloud project.
+ * automatic fallback wherever Clerk is not configured, which keeps local
+ * development working with no Clerk account.
  */
 const OTP_LOGIN_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_OTP_LOGIN === "true" || !GOOGLE_SIGNIN_ENABLED;
+  process.env.NEXT_PUBLIC_ENABLE_OTP_LOGIN === "true" || !CLERK_ENABLED;
+
+/**
+ * Clerk sign-in, with Google as the only enabled provider.
+ *
+ * Rendered only when CLERK_ENABLED, because Clerk's hooks throw outside the
+ * ClerkProvider that the same constant gates in app/layout.tsx.
+ */
+function ClerkSignIn({
+  role,
+  onSession,
+  onError,
+}: {
+  role: Role;
+  onSession: (res: AuthResponse) => void;
+  onError: (message: string | null) => void;
+}) {
+  const { signIn, fetchStatus } = useSignIn();
+  const { isSignedIn, getToken } = useClerkAuth();
+  const [starting, setStarting] = useState(false);
+
+  // One exchange per mount. Clerk's hooks re-render on their own schedule, and
+  // without this a second render mid-request would post the token twice.
+  const exchanging = useRef(false);
+
+  useEffect(() => {
+    if (!isSignedIn || exchanging.current) return;
+    exchanging.current = true;
+
+    void (async () => {
+      try {
+        const sessionToken = await getToken();
+        if (!sessionToken) throw new Error("Could not read your sign-in");
+        // Deliberately no email in this call. The API resolves it from Clerk,
+        // so a tampered client cannot claim an address it has not proven.
+        const res = await api.post<AuthResponse>("/auth/clerk/verify", {
+          sessionToken,
+          role,
+        });
+        onSession(res);
+      } catch (err) {
+        exchanging.current = false;
+        onError(err instanceof ApiError ? err.message : (err as Error).message);
+      }
+    })();
+  }, [isSignedIn, getToken, role, onSession, onError]);
+
+  async function start() {
+    if (!signIn) return;
+    onError(null);
+
+    // Opened synchronously inside the click handler — a window opened later,
+    // after an await, is treated as unsolicited and blocked.
+    const popup = window.open("about:blank", "", "width=520,height=640");
+    if (!popup) {
+      onError("Allow pop-ups for this site, then try again.");
+      return;
+    }
+
+    setStarting(true);
+    try {
+      const { error } = await signIn.sso({
+        strategy: "oauth_google",
+        // Both point at the callback route: it runs inside the popup, finishes
+        // the handshake and closes itself. The login screen is still open in
+        // the parent window, where the effect above picks the session up.
+        redirectUrl: SSO_CALLBACK_PATH,
+        redirectCallbackUrl: SSO_CALLBACK_PATH,
+        popup,
+      });
+      if (error) {
+        popup.close();
+        onError(error.message || "Could not sign in with Google");
+      }
+    } catch (err) {
+      popup.close();
+      onError(err instanceof Error ? err.message : "Could not sign in with Google");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  // Signed in with Clerk but not yet with us — the effect above is mid-flight.
+  const busy = starting || isSignedIn;
+
+  return (
+    <button
+      type="button"
+      onClick={start}
+      disabled={fetchStatus === "fetching" || busy}
+      className={`${primaryButtonClass} flex items-center justify-center gap-2`}
+    >
+      {busy && <Spinner className="h-4 w-4" />}
+      {busy ? "Signing you in…" : "Continue with Google"}
+    </button>
+  );
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -46,7 +143,7 @@ function LoginForm() {
   const role = (useSearchParams().get("role") ?? "customer") as Role;
 
   const [step, setStep] = useState<"choose" | "phone" | "code">(
-    GOOGLE_SIGNIN_ENABLED ? "choose" : "phone",
+    CLERK_ENABLED ? "choose" : "phone",
   );
   const [phoneNumber, setPhoneNumber] = useState("+91");
   const [code, setCode] = useState("");
@@ -54,55 +151,20 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const googleButtonRef = useRef<HTMLDivElement>(null);
-
-  function finishLogin(res: AuthResponse) {
-    login(res.token, {
-      sub: res.user.id,
-      phoneNumber: res.user.phoneNumber,
-      email: res.user.email,
-      role: res.user.role,
-    });
-    router.push(ROLE_HOME[res.user.role] ?? "/");
-  }
-
-  const signInWithGoogle = useCallback(
-    async (idToken: string) => {
-      setError(null);
-      setLoading(true);
-      try {
-        // Deliberately no email in this call. The API takes it from Google's
-        // verification of the ID token, so a tampered client cannot claim an
-        // address it has not proven.
-        const res = await api.post<AuthResponse>("/auth/google/verify", { idToken, role });
-        finishLogin(res);
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : (err as Error).message);
-      } finally {
-        setLoading(false);
-      }
+  const finishLogin = useCallback(
+    (res: AuthResponse) => {
+      login(res.token, {
+        sub: res.user.id,
+        phoneNumber: res.user.phoneNumber,
+        email: res.user.email,
+        role: res.user.role,
+      });
+      router.push(ROLE_HOME[res.user.role] ?? "/");
     },
-    // finishLogin closes over router/login, both stable for this screen's life.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role],
+    [login, router],
   );
 
-  useEffect(() => {
-    if (step !== "choose" || !GOOGLE_SIGNIN_ENABLED) return;
-    const el = googleButtonRef.current;
-    if (!el) return;
-
-    let cancelled = false;
-    renderGoogleButton(el, (idToken) => {
-      if (!cancelled) void signInWithGoogle(idToken);
-    }).catch((err: unknown) => {
-      if (!cancelled) setError((err as Error).message);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [step, signInWithGoogle]);
+  const showError = useCallback((message: string | null) => setError(message), []);
 
   async function requestOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -176,15 +238,7 @@ function LoginForm() {
 
       {step === "choose" && (
         <div className="flex flex-col gap-4">
-          {/* Google requires its own rendered button; this is the container. */}
-          <div ref={googleButtonRef} className="flex min-h-[44px] justify-center" />
-
-          {loading && (
-            <p className="flex items-center justify-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-              <Spinner className="h-4 w-4" />
-              Signing you in…
-            </p>
-          )}
+          <ClerkSignIn role={role} onSession={finishLogin} onError={showError} />
 
           {error && <ErrorBanner>{error}</ErrorBanner>}
 
@@ -221,7 +275,7 @@ function LoginForm() {
             {loading && <Spinner className="h-4 w-4" />}
             {loading ? "Sending…" : "Send OTP"}
           </button>
-          {GOOGLE_SIGNIN_ENABLED && (
+          {CLERK_ENABLED && (
             <button
               type="button"
               onClick={() => {

@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { OTP_PROVIDER } from './otp-provider.interface';
 import { Msg91WidgetService } from './msg91-widget.service';
-import { GoogleAuthService } from './google-auth.service';
+import { ClerkAuthService } from './clerk-auth.service';
 import { ConsoleOtpProvider } from './providers/console-otp.provider';
 import { Msg91OtpProvider } from './providers/msg91-otp.provider';
 import { SharedJwtModule } from '../common/shared-jwt.module';
@@ -14,7 +14,7 @@ import { SharedJwtModule } from '../common/shared-jwt.module';
   providers: [
     AuthService,
     Msg91WidgetService,
-    GoogleAuthService,
+    ClerkAuthService,
     ConsoleOtpProvider,
     Msg91OtpProvider,
     {

@@ -63,8 +63,8 @@ export class UpsertShopDto {
   secondaryCategories?: ShopCategoryName[];
 
   /**
-   * Required (AUC-89). Google sign-in gives us an email and no phone, but an
-   * admin still needs to call this shop to verify it exists and to work a
+   * Required (AUC-89). Signing in through Clerk gives us an email and no phone,
+   * but an admin still needs to call this shop to verify it exists and to work a
    * dispute. The column is nullable so shops onboarded under the OTP flow are
    * untouched; it is required *here* so no new shop is created without one.
    *
