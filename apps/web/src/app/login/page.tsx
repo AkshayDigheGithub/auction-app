@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth as useClerkAuth, useSignIn } from "@clerk/nextjs";
+import { useAuth as useClerkAuth, useClerk, useSignIn, useUser } from "@clerk/nextjs";
 import { api, ApiError } from "@/lib/api";
 import {
   MSG91_WIDGET_ENABLED,
@@ -13,24 +13,29 @@ import {
 } from "@/lib/msg91-widget";
 import {
   CLERK_ENABLED,
+  consumeSsoPending,
   forgetRole,
+  markSsoPending,
   recallRole,
   rememberRole,
   ssoCallbackUrl,
 } from "@/lib/clerk";
 import { useAuth, type Role } from "@/lib/auth-context";
-import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
+import { homeForRole } from "@/lib/role-routes";
+import {
+  ErrorBanner,
+  InfoBanner,
+  inputClass,
+  labelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  Spinner,
+} from "@/components/ui";
 
 const ROLE_LABEL: Record<string, string> = {
   customer: "Customer",
   shop_owner: "Shop Owner",
   admin: "Admin",
-};
-
-const ROLE_HOME: Record<string, string> = {
-  customer: "/request/new",
-  shop_owner: "/onboard",
-  admin: "/admin",
 };
 
 type AuthResponse = {
@@ -52,6 +57,17 @@ const OTP_LOGIN_ENABLED =
  *
  * Rendered only when CLERK_ENABLED, because Clerk's hooks throw outside the
  * ClerkProvider that the same constant gates in app/layout.tsx.
+ *
+ * The exchange is deliberately gated on `consumeSsoPending()` rather than on
+ * Clerk's `isSignedIn`. Keying it on the latter treated "Clerk happens to hold
+ * a session" as consent to sign in, and since Clerk's session cookie outlives
+ * its ~60s access token by days, that was true on nearly every return visit to
+ * this page. It meant the back button could never leave /login, a phone handed
+ * over still signed in its previous owner, and logging out bounced through here
+ * and collected a fresh 30-day token on the way past.
+ *
+ * So: finish automatically only what this browser just started, and make every
+ * other path an explicit tap.
  */
 function ClerkSignIn({
   role,
@@ -64,48 +80,68 @@ function ClerkSignIn({
 }) {
   const { signIn, fetchStatus } = useSignIn();
   const { isSignedIn, getToken } = useClerkAuth();
-  const [starting, setStarting] = useState(false);
+  const { user: clerkUser } = useUser();
+  const { signOut } = useClerk();
 
-  // One exchange per mount. Clerk's hooks re-render on their own schedule, and
-  // without this a second render mid-request would post the token twice.
-  const exchanging = useRef(false);
+  const [starting, setStarting] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  // A Clerk session we did not just create, or one whose exchange failed.
+  // Either way it takes a tap before it becomes one of our sessions, so the
+  // account being resumed is always on screen before it is resumed.
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+
+  // Clerk's hooks re-render on their own schedule; without these a second
+  // render mid-request would post the token twice, or rule on the session
+  // twice and undo the first answer.
+  const inFlight = useRef(false);
+  const decided = useRef(false);
+
+  const runExchange = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const sessionToken = await getToken();
+      if (!sessionToken) throw new Error("Could not read your sign-in");
+      // Deliberately no email in this call. The API resolves it from Clerk,
+      // so a tampered client cannot claim an address it has not proven.
+      const res = await api.post<AuthResponse>("/auth/clerk/verify", {
+        sessionToken,
+        // The role the user actually picked, which survives the OAuth round
+        // trip in sessionStorage; `role` from the URL is the fallback.
+        role: recallRole() ?? role,
+      });
+      forgetRole();
+      onSession(res);
+    } catch (err) {
+      inFlight.current = false;
+      // The Clerk session is still live, so drop back to the explicit button
+      // rather than leaving a dead screen with only an error on it.
+      setNeedsConfirm(true);
+      onError(err instanceof ApiError ? err.message : (err as Error).message);
+    }
+  }, [getToken, role, onSession, onError]);
 
   useEffect(() => {
-    if (!isSignedIn || exchanging.current) return;
-    exchanging.current = true;
-
+    if (!isSignedIn) return;
     void (async () => {
-      try {
-        const sessionToken = await getToken();
-        if (!sessionToken) throw new Error("Could not read your sign-in");
-        // Deliberately no email in this call. The API resolves it from Clerk,
-        // so a tampered client cannot claim an address it has not proven.
-        const res = await api.post<AuthResponse>("/auth/clerk/verify", {
-          sessionToken,
-          // The role the user actually picked, which survives the OAuth round
-          // trip in sessionStorage; `role` from the URL is the fallback.
-          role: recallRole() ?? role,
-        });
-        forgetRole();
-        onSession(res);
-      } catch (err) {
-        exchanging.current = false;
-        onError(err instanceof ApiError ? err.message : (err as Error).message);
-      }
+      if (decided.current) return;
+      decided.current = true;
+      // Only ever resume a sign-in this browser started. A session that merely
+      // happens to exist is not consent — it is usually just whoever used the
+      // phone last — so anything else has to be confirmed by tapping.
+      if (consumeSsoPending()) await runExchange();
+      else setNeedsConfirm(true);
     })();
-  }, [isSignedIn, getToken, role, onSession, onError]);
+  }, [isSignedIn, runExchange]);
 
   async function start() {
-    // Already signed in with Clerk, just not yet with us — the effect above is
-    // handling it. Starting a second sign-in here is what produced the blank
-    // popup: sso() will not open an attempt while a session is active, so the
-    // window it was handed stayed on about:blank.
-    if (!signIn || isSignedIn) return;
+    if (!signIn) return;
     onError(null);
     setStarting(true);
 
-    // Survives the trip to Google and back; the URL's ?role= does not.
+    // Both survive the trip to Google and back; the URL's ?role= does not.
     rememberRole(role);
+    markSsoPending();
 
     try {
       // Absolute, not a bare path — sso() parses these with the URL
@@ -119,27 +155,88 @@ function ClerkSignIn({
       // Only reached if the handshake failed — on success the browser has
       // already navigated away.
       if (error) {
+        consumeSsoPending();
         onError(error.message || "Could not sign in with Google");
         setStarting(false);
       }
     } catch (err) {
+      consumeSsoPending();
       onError(err instanceof Error ? err.message : "Could not sign in with Google");
       setStarting(false);
     }
   }
 
-  // Signed in with Clerk but not yet with us — the effect above is mid-flight.
-  const busy = starting || isSignedIn;
+  /**
+   * The way out when the session on screen belongs to someone else — the shared
+   * phone this whole flow is built around. Without it, "Continue as …" would be
+   * the only offer and the previous owner's account the only reachable one.
+   */
+  async function switchAccount() {
+    setSwitching(true);
+    onError(null);
+    try {
+      await signOut();
+      decided.current = false;
+      setNeedsConfirm(false);
+    } catch {
+      onError("Could not switch accounts. Check your connection and try again.");
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  // Deliberately spinner-first for a live session: on the path that matters —
+  // coming back from Google — showing the confirm button for the frame before
+  // the decision lands would offer a tap the user has already made.
+  if (isSignedIn && !needsConfirm && !switching) {
+    return (
+      <button type="button" disabled className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+        <Spinner className="h-4 w-4" />
+        Signing you in…
+      </button>
+    );
+  }
+
+  // A live Clerk session we did not just create: show whose it is, and make
+  // continuing a deliberate act.
+  if (isSignedIn) {
+    const email = clerkUser?.primaryEmailAddress?.emailAddress;
+    return (
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setNeedsConfirm(false);
+            onError(null);
+            void runExchange();
+          }}
+          disabled={switching}
+          className={`${primaryButtonClass} flex items-center justify-center gap-2`}
+        >
+          {email ? `Continue as ${email}` : "Continue"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void switchAccount()}
+          disabled={switching}
+          className={`${secondaryButtonClass} flex items-center justify-center gap-2`}
+        >
+          {switching && <Spinner className="h-4 w-4" />}
+          {switching ? "Switching…" : "Use a different account"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <button
       type="button"
       onClick={start}
-      disabled={fetchStatus === "fetching" || busy}
+      disabled={fetchStatus === "fetching" || starting}
       className={`${primaryButtonClass} flex items-center justify-center gap-2`}
     >
-      {busy && <Spinner className="h-4 w-4" />}
-      {busy ? "Signing you in…" : "Continue with Google"}
+      {starting && <Spinner className="h-4 w-4" />}
+      {starting ? "Signing you in…" : "Continue with Google"}
     </button>
   );
 }
@@ -166,7 +263,11 @@ function LoginForm() {
         email: res.user.email,
         role: res.user.role,
       });
-      router.push(ROLE_HOME[res.user.role] ?? "/");
+      // replace(), not push(): /login is not a place to go back to. Leaving it
+      // in the history stack meant a back tap remounted it, found the live
+      // Clerk session and pushed straight forward again — an inescapable loop
+      // that minted a token per bounce.
+      router.replace(homeForRole(res.user.role));
     },
     [login, router],
   );

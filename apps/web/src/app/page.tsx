@@ -4,19 +4,14 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-
-const ROLE_HOME: Record<string, string> = {
-  customer: "/request/new",
-  shop_owner: "/nearby",
-  admin: "/admin",
-};
+import { homeForRole } from "@/lib/role-routes";
 
 export default function Home() {
   const { user, ready } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (ready && user) router.replace(ROLE_HOME[user.role] ?? "/");
+    if (ready && user) router.replace(homeForRole(user.role));
   }, [ready, user, router]);
 
   return (

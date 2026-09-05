@@ -94,3 +94,44 @@ export function forgetRole(): void {
     // Nothing to clean up if it was never written.
   }
 }
+
+/**
+ * A one-shot marker that *this* browser started an SSO redirect.
+ *
+ * Without it, the login screen keyed its exchange on Clerk's ambient
+ * `isSignedIn`, which treats "Clerk happens to have a session" as consent to
+ * sign in. Clerk's session cookie outlives the ~60s access token by days, so
+ * that was true on essentially every return visit to /login, not just the one
+ * moment after a redirect. Three things fell out of it:
+ *
+ *   - the back button could never leave /login: it remounted, saw a session,
+ *     exchanged again and pushed forward;
+ *   - a stale session signed in whoever last used the phone, with no prompt;
+ *   - logging out bounced through /login and got a fresh 30-day token.
+ *
+ * Set immediately before handing off to Clerk and consumed exactly once on the
+ * way back, so the automatic exchange happens only for a sign-in the user
+ * actually just asked for. Everything else has to go through a visible tap.
+ *
+ * sessionStorage, and wrapped, for the same reasons as the role above.
+ */
+const SSO_PENDING_KEY = "clerk:sso-pending";
+
+export function markSsoPending(): void {
+  try {
+    sessionStorage.setItem(SSO_PENDING_KEY, "1");
+  } catch {
+    // Non-fatal: the user is shown an explicit "Continue as" button instead.
+  }
+}
+
+/** True only for the first read after {@link markSsoPending}. */
+export function consumeSsoPending(): boolean {
+  try {
+    const pending = sessionStorage.getItem(SSO_PENDING_KEY) === "1";
+    sessionStorage.removeItem(SSO_PENDING_KEY);
+    return pending;
+  } catch {
+    return false;
+  }
+}
