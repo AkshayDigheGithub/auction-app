@@ -73,12 +73,18 @@ exist** — `apps/site` has no `public/` directory at all (finding H4), and the
 wordmark is an inline SVG in the header. Producing that asset is the same task as
 producing the OG image, so do them together.
 
-`contactPoint` is **blocked on B2** — the phone and email in
-[`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts) are
-placeholders (`+91 00000 00000`, `hello@example.com`) that currently render live
-on every page. Publishing those as structured contact data would put a fake
-number into Google's knowledge graph. Ship `Organization` without `contactPoint`
-now; add it the day a real staffed line exists.
+`contactPoint` is **no longer blocked on B2** — as of 2026-09-06 the phone and
+email in [`apps/site/src/lib/site.ts:74-75`](../../apps/site/src/lib/site.ts)
+are real (`+91 9503 928792`, `contact@mivikto.store`), not placeholders. Both
+sit on the site's own domain, so the NAP data is self-consistent.
+
+That makes it publishable, which is not the same as ready. Settle one thing
+first, because structured data propagates into Google's knowledge graph and is
+far harder to retract than a footer edit: confirm the line is actually
+**answered**, not merely real. The failure this markup creates is a number in
+search results that rings out.
+
+Once that holds, add `contactPoint` to `Organization` alongside `areaServed`.
 
 `areaServed` is newly available and should ship alongside the rest of
 `Organization`. `PILOT_CITY` is `"Pune"` as of 2026-09-05

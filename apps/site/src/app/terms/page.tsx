@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Terms",
   description:
     "mivikto.store connects buyers with nearby shops. The sale itself is between you and the shop — here is what that means in practice.",
+  alternates: { canonical: "/terms" },
 };
 
 /*

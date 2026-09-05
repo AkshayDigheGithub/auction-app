@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Privacy",
   description:
     "What mivikto.store collects, why, and who can see it. We do not sell your phone number and we do not send marketing messages.",
+  alternates: { canonical: "/privacy" },
 };
 
 /*

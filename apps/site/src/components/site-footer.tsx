@@ -28,7 +28,7 @@ export function SiteFooter() {
           <nav className="flex flex-col gap-2.5">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Product</p>
             {NAV_LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="text-sm text-ink-600 hover:text-ink-900">
+              <Link key={l.href} href={`/${l.href}`} className="text-sm text-ink-600 hover:text-ink-900">
                 {l.label}
               </Link>
             ))}
