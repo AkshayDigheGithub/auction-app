@@ -20,13 +20,16 @@ export const APP_URL =
     : "http://localhost:3000");
 
 /**
- * PLACEHOLDER — the pilot city is still an open decision (spec §10, item 1).
+ * The pilot city, decided 2026-09-05 — closes spec §10 open decision #1.
  *
- * Deliberately not a real city name: a launch deadline must not be what forces
- * a city into public copy. Set this once the decision is actually made; until
- * then the coverage section says we are onboarding without naming a place.
+ * Setting this is not cosmetic: it switches the coverage section from "we are
+ * onboarding shops right now" to "Live in Pune", which is a public claim that
+ * the product works for someone standing in Pune. Keep it truthful. If shop
+ * density in the city ever falls back to the point where a posted request
+ * routinely reaches nobody, this goes back to null rather than the copy being
+ * softened around it.
  */
-export const PILOT_CITY: string | null = null;
+export const PILOT_CITY: string | null = "Pune";
 
 /**
  * Role-specific entry points. The app reads `role` off the query string and,

@@ -70,11 +70,11 @@ step tracks on the homepage. They have almost nothing in common in search.
 ## Where the demand actually is
 
 Three tiers, and it matters not to confuse them. We have no keyword-tool data;
-these are qualitative and need validating against Keyword Planner or Ahrefs once
-the pilot city is fixed. **No volume figures appear in this document because we
-do not have any.**
+these are qualitative and need validating against Keyword Planner or Ahrefs now
+that the pilot city (Pune, decided 2026-09-05) is fixed. **No volume figures
+appear in this document because we do not have any.**
 
-**Tier A — product and local intent.** "iPhone 15 price in <city>", "mobile shop
+**Tier A — product and local intent.** "iPhone 15 price in Pune", "mobile shop
 near me", "electronics store near me". Real, existing demand. Entirely owned by
 others today.
 
@@ -120,15 +120,17 @@ regardless of the language spoken, so Tier A head terms do not require
 regional-language pages; and a genuine Hindi or regional-language build is a
 content-production cost that spec §8 does not budget for.
 
-Revisit once the pilot city is fixed and unit economics are validated. There is
-no i18n framework in the stack today (spec §6), so this would be a real build,
-not a copy exercise.
+The pilot city is fixed now (Pune); this is still gated on unit economics, which
+are not. Revisit once those are validated. There is no i18n framework in the
+stack today (spec §6), so this would be a real build, not a copy exercise.
 
 ## What we will not do yet
 
-- **Programmatic location or category pages.** No pilot city, and MVP is a
-  single category so there is no category axis to build on. See
-  [backlog.md](backlog.md) for the supply threshold that should gate these.
+- **Programmatic location or category pages.** The pilot city is fixed now
+  (Pune), but shop density is not there yet — 4 shops within a generous 25 km
+  ring as of 2026-09-05 — and MVP is a single category so there is no category
+  axis to build on regardless. See [backlog.md](backlog.md) for the density
+  gate that should gate these.
 - **A blog or content hub.** Not needed to validate the core loop.
 - **Link building or directory campaigns.** These presume a live product to
   send traffic to.

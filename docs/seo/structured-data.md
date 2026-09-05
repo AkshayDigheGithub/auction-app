@@ -4,6 +4,12 @@ There is no schema.org markup anywhere in the repo today (audit finding B5). Thi
 document says what we can honestly publish now, what is blocked, and what we must
 not publish at all.
 
+Reassessed 2026-09-05 after `PILOT_CITY` was set to `"Pune"`. The city decision
+adds exactly one new fact to this document — `areaServed` on `Organization`,
+below. It does not add `LocalBusiness`, per-shop markup, or anything else that
+would assert more presence in Pune than 3 verified shops and 4 shops within a
+25 km ring actually support.
+
 ## The rule
 
 **Structured data must describe what is actually on the page.** Markup that
@@ -68,27 +74,73 @@ wordmark is an inline SVG in the header. Producing that asset is the same task a
 producing the OG image, so do them together.
 
 `contactPoint` is **blocked on B2** — the phone and email in
-[`apps/site/src/lib/site.ts:49`](../../apps/site/src/lib/site.ts) are
+[`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts) are
 placeholders (`+91 00000 00000`, `hello@example.com`) that currently render live
 on every page. Publishing those as structured contact data would put a fake
 number into Google's knowledge graph. Ship `Organization` without `contactPoint`
 now; add it the day a real staffed line exists.
 
+`areaServed` is newly available and should ship alongside the rest of
+`Organization`. `PILOT_CITY` is `"Pune"` as of 2026-09-05
+([`apps/site/src/lib/site.ts:32`](../../apps/site/src/lib/site.ts)), and the
+Coverage section already makes the claim "Live in Pune" in visible copy
+([`apps/site/src/app/page.tsx:312`](../../apps/site/src/app/page.tsx)). The rule
+at the top of this document — markup must describe what is actually on the page
+— cuts in favour of adding it now, because the page already asserts exactly
+this and nothing more:
+
+```tsx
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "mivikto.store",
+  url: "https://mivikto.store",
+  areaServed: {
+    "@type": "City",
+    name: "Pune",
+  },
+}
+```
+
+Keep it to the city, not a locality within it. `areaServed: "Pune"` matches the
+one geo-claim the site makes. Anything narrower — a neighbourhood, a radius, a
+set of postal codes — would assert a coverage guarantee that four shops in a
+25 km ring cannot back, and it is the kind of specific-sounding claim that reads
+worse when it turns out to be thin than a vaguer one would.
+
 ## Blocked, with the specific blocker
 
-### LocalBusiness — do not publish
+### LocalBusiness — still do not publish
 
-`PILOT_CITY` is `null`, so there is no address, no `areaServed`, no geo
-coordinates, and the Coverage section renders a placeless fallback. Publishing
-`LocalBusiness` today would mean inventing a location for a hyperlocal product,
-which is both a policy violation and a lie to the user.
+The pilot city no longer blocks this the way it did; a different problem does.
+`LocalBusiness` describes a business with a physical premises — an address, a
+`geo` coordinate pair, a place a customer could stand in front of. mivikto has
+none of that to offer for itself: there is no office address anywhere in the
+public copy, and `CONTACT_PHONE`/`CONTACT_EMAIL` are still placeholders (B2,
+[`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts)). Marking
+the platform up as a `LocalBusiness` would be inventing a premises for a
+service that deliberately has none — mivikto is a marketplace, not a shop
+front, and `Organization` plus `areaServed` says that correctly where
+`LocalBusiness` would not.
 
-Unblocked by spec §10 item 1 — the pilot city decision. Revisit the same day
-that lands, because at that point this becomes one of the higher-value items on
-the list.
+Nor does the pilot-city decision create an opening for **per-shop**
+`LocalBusiness` markup. Do not build that, ever, regardless of density: shop
+identity is hidden from the customer until a deal locks — the product's
+revenue guardrail (spec §2, §5) — and structured data naming a shop before that
+point would leak exactly what the matching flow is designed to withhold. This
+is a design constraint, not a data-availability one, so it does not get
+revisited when shop count grows.
 
-Related: when the city is chosen, a Google Business Profile is likely to matter
-more than this markup, for the reasons in [strategy.md](strategy.md).
+The honest inventory today is also thin on the count that would matter most if
+we ever did reconsider a *directory*-style listing: 11 shops total, only 3
+verified, and only 4 within a generous 25 km ring of Pune's centre. That is a
+separate reason this stays closed for now, but it is not the load-bearing one
+— the design guardrail is.
+
+Related: a Google Business Profile for mivikto itself is likely to matter more
+than any markup here, for the reasons in [strategy.md](strategy.md), and it
+carries the same constraint — do not create one until there is a real,
+staffed address and phone number to put on it (B2).
 
 ### Service / HowTo — possible but low value
 

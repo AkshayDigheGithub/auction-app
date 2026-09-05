@@ -3,7 +3,10 @@
 Organic search documentation for mivikto.store, the hyperlocal reverse-auction
 marketplace described in [`mvp-spec-hyperlocal-bid-app_1.md`](../../mvp-spec-hyperlocal-bid-app_1.md).
 
-Written 2026-09-05, against commit `598514a`.
+Written 2026-09-05, against commit `598514a`. Revised the same day, after
+`PILOT_CITY` was set to `"Pune"` — see fact 1 below and
+[technical-audit.md](technical-audit.md) (finding B3) for what that did and did
+not unblock.
 
 ## The documents
 
@@ -20,11 +23,29 @@ Written 2026-09-05, against commit `598514a`.
 Three facts shape every recommendation in here, and if any of them changes the
 documents need revisiting:
 
-1. **The pilot city is not chosen.** `PILOT_CITY` is `null` in
-   [`apps/site/src/lib/site.ts:29`](../../apps/site/src/lib/site.ts), and spec §10
-   lists the city as an open decision. A hyperlocal product with no place name
-   in its copy cannot rank for a geo-qualified query. Most of the high-value SEO
-   work is genuinely blocked on this, not on engineering time.
+1. **The pilot city is Pune — but shop density there is thin, and that is now
+   the real constraint.** `PILOT_CITY` was set to `"Pune"` in
+   [`apps/site/src/lib/site.ts:32`](../../apps/site/src/lib/site.ts) on
+   2026-09-05, closing spec §10 open decision #1. That switches the homepage
+   Coverage section from "we are onboarding shops right now" to "Live in Pune"
+   ([`apps/site/src/app/page.tsx:312`](../../apps/site/src/app/page.tsx)) and
+   unblocks every piece of geo-qualified copy that was previously waiting on a
+   real place name.
+
+   It does **not** unblock location or category landing pages, and it does not
+   make `LocalBusiness` markup safe to publish. A direct, read-only query of the
+   production database on 2026-09-05 found 11 shops total, 3 verified, all 11
+   with a location set but only 4 within a generous 25 km ring of Pune's centre
+   — and every one of the 11 in the single MVP category, `mobile_electronics`.
+   22 requests and 8 deals have been posted all-time. Four shops spread across a
+   25 km ring means most named Pune localities — Kothrud, Koregaon Park,
+   Hadapsar, Viman Nagar, Baner, and the rest — would carry zero or one shop
+   each. A page built on that density is thin content, and at pilot stage it
+   reads as a doorway page to a search engine: a live ranking risk to the whole
+   domain, not merely wasted writing effort. **The binding constraint on
+   location and category pages is now shop density, not the city decision** —
+   see the gate in [backlog.md](backlog.md), and revisit this fact again if
+   density crosses it.
 2. **Organic traffic outside the bid radius is worth approximately nothing.**
    A deal can only close when a shop within the matching radius (5 km default,
    spec §2) bids on it. A visitor from another city converts to zero revenue,

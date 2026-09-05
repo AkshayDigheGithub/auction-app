@@ -3,6 +3,12 @@
 Prioritised by impact per unit of effort at pilot stage. Findings referenced as
 `B1`–`B5` and `H1`–`H6` map to [technical-audit.md](technical-audit.md).
 
+Revised 2026-09-05: `PILOT_CITY` was set to `"Pune"` the same day, resolving B3
+and the old "set `PILOT_CITY`" item (now item 17, marked done below).
+Re-prioritised accordingly — two cheap, newly-legitimate items moved into Tier
+2 (15, 16) — and added an explicit density gate for location and category
+pages in Tier 4.
+
 **No Jira tickets exist for any of this.** Items are named, not numbered. Open a
 ticket before citing a number, and verify state against the repo rather than the
 board.
@@ -79,35 +85,82 @@ retrofit than to do.
     gap as much as an SEO one.
 14. **Add analytics to `apps/site`.** The primary SEO surface has none. Consider
     `@vercel/speed-insights` for field Core Web Vitals; neither app has it.
+15. **A geo-qualified title and description pass on `/`.** Newly available, not
+    newly required — `PILOT_CITY` is `"Pune"` as of 2026-09-05
+    ([`apps/site/src/lib/site.ts:32`](../../apps/site/src/lib/site.ts)) and the
+    Coverage section already says "Live in Pune"
+    ([`apps/site/src/app/page.tsx:312`](../../apps/site/src/app/page.tsx)), so a
+    title naming Pune would describe the page rather than get ahead of it. See
+    the concrete option in [keyword-map.md](keyword-map.md). Weigh it against
+    the current brand-forward title before shipping — a city name in the title
+    is a bigger commitment to reverse than one in a footer section.
+16. **`Organization` JSON-LD gains `areaServed: "Pune"`.** Ship alongside item
+    10 above, or as a follow-up to it if 10 already shipped without it. See
+    [structured-data.md](structured-data.md).
 
-## Tier 3 — after the pilot city is decided
+## Tier 3 — still blocked, on a real phone line, not on the city
 
-All of these are blocked on spec §10 item 1, not on engineering time. Nothing
-here should be unblocked by inventing a city.
+Item 15 in this tier used to be "set `PILOT_CITY`." That is done — see below.
+The city decision resolved B3, but it does not resolve B2, and B2 is now the
+single blocker behind everything else in this tier.
 
-15. **Set `PILOT_CITY`** and let the geo-qualified copy through (B3).
-16. **Replace the placeholder phone and email** (B2). Blocked on a real staffed
-    line, not on code. Until then `example.com` is rendering on every public page.
-17. **`LocalBusiness` structured data** and a Google Business Profile. For "near
-    me" queries the profile is likely worth more than anything we do on-page.
-18. **A geo-qualified title and description pass** once a city name is legitimate.
+17. **~~Set `PILOT_CITY`~~ — done, 2026-09-05.** `PILOT_CITY` is `"Pune"`
+    ([`apps/site/src/lib/site.ts:32`](../../apps/site/src/lib/site.ts)),
+    closing spec §10 open decision #1. See
+    [technical-audit.md](technical-audit.md) finding B3 for exactly what this
+    did and did not unblock — it is not everything that was filed under "wait
+    for the city" before today.
+18. **Replace the placeholder phone and email** (B2). Still blocked on a real
+    staffed line, not on code, and not on the city — `example.com` is still
+    rendering on every public page. This is now the binding blocker behind
+    `Organization.contactPoint`, any Google Business Profile, and any future
+    reconsideration of on-page contact trust signals. Nothing about the Pune
+    decision moves this forward.
+19. **A Google Business Profile for mivikto.** Blocked on item 18, not on the
+    city and not on shop density — a profile needs a real, verifiable phone
+    number and address, neither of which exists yet. For "near me" queries this
+    is likely worth more than anything on-page; see [strategy.md](strategy.md).
+    Note this is a profile for **mivikto**, not for any individual shop — see
+    [structured-data.md](structured-data.md) on why per-shop listings are off
+    the table regardless of density.
 
 ## Tier 4 — post-pilot, needs a decision first
 
-19. **Tier B advice content.** The realistic organic wedge, and a genuine
+20. **Tier B advice content.** The realistic organic wedge, and a genuine
     unbudgeted cost — spec §8 has no marketing or content line. Needs the
     business owner to fund it, not an engineer to start it.
-20. **Location pages**, gated on the supply threshold in
-    [keyword-map.md](keyword-map.md): a minimum of active bidding shops in the
-    radius *and* a minimum of completed deals in a trailing window. Set the
-    numbers from real pilot data.
-21. **A dedicated `/for-shops` route**, once the shop-owner FAQ is crawlable and
+21. **Location and category pages** — explicitly gated, and explicitly not
+    ready. A read-only query of the production database on 2026-09-05 found 11
+    shops total in Pune, 3 verified, and only 4 within a generous 25 km ring of
+    the city centre — a ring far wider than the 5 km default matching radius
+    (spec §2) a real location page would promise — all 11 in the single MVP
+    category. 22 requests and 8 deals exist all-time, city-wide. That is
+    zero or one shop per named Pune locality, not counted per 5 km radius.
+
+    **Proposed density gate** (a product and business call to formally adopt,
+    not a measured figure — treat the numbers themselves as a starting proposal
+    rather than a finding): a locality or category page should not ship until
+    that locality/category combination sustains **at least 5 active, verified,
+    bidding shops within its matching radius** and **at least 5 completed deals
+    sourced from that radius in a trailing 90-day window.** Below that, a
+    posted request has a real chance of reaching nobody, which is a worse
+    outcome for the visitor than never having found the page, and mass-
+    generating pages at sub-threshold density across Pune's localities would
+    read as templated doorway pages to a crawler — a risk to the whole
+    domain's trust, not just wasted effort on the pages themselves (see
+    [technical-audit.md](technical-audit.md) B3 and [README.md](README.md)).
+
+    At today's count — 4 shops in a 25 km ring, single category — **every
+    locality in Pune fails this gate**, and pages stay unbuilt until real usage
+    data says otherwise. Re-check this number periodically as the pilot
+    progresses; do not build ahead of it.
+22. **A dedicated `/for-shops` route**, once the shop-owner FAQ is crawlable and
     the acquisition model in spec §10 is decided.
-22. **CI Lighthouse budget.** There is no `.github/workflows` at all today, so
+23. **CI Lighthouse budget.** There is no `.github/workflows` at all today, so
     this means standing up CI from scratch. Reasonable to defer until there are
     more pages worth protecting. GitHub Actions free tier covers a repo this
     size, so no meaningful rupee cost.
-23. **Hindi and regional-language content.** No i18n framework in the stack
+24. **Hindi and regional-language content.** No i18n framework in the stack
     (spec §6), so this is a real build. Start with Hinglish variants inside the
     existing English pages.
 
@@ -116,6 +169,10 @@ here should be unblocked by inventing a city.
 - **Removing `"use client"` from the `apps/web` routes for SEO.** Those pages
   should not be indexed. A robots signal is the correct fix.
 - **Category pages.** MVP is single-category (spec §4, §9); there is no axis.
+- **Per-shop `LocalBusiness` or directory-style markup, at any shop count.**
+  Shop identity is hidden from the customer until a deal locks — a revenue
+  guardrail (spec §2, §5), not a data-availability gap — so this does not get
+  revisited as supply grows. See [structured-data.md](structured-data.md).
 - **Link building or directory campaigns.** Premature pre-launch.
 - **Publishing any commission figure** in metadata, copy or schema. Open decision
   (spec §10), and billing is still in shadow mode with nobody charged — see

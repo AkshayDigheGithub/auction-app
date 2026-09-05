@@ -1,6 +1,7 @@
 # Technical SEO audit
 
-State of the code as of 2026-09-05, commit `598514a`. Every finding carries file
+State of the code as of 2026-09-05, commit `598514a`, revised the same day
+after `PILOT_CITY` was set to `"Pune"` (B3, below). Every finding carries file
 and line evidence. Severity is impact on organic search, not on the product.
 
 Two apps are in scope:
@@ -26,9 +27,9 @@ Consequence: nothing to submit to Search Console, and no crawl guidance anywhere
 ### B2 — Placeholder contact details are live on every public page
 
 `CONTACT_PHONE` is `+91 00000 00000` and `CONTACT_EMAIL` is `hello@example.com`
-in [`apps/site/src/lib/site.ts:49`](../../apps/site/src/lib/site.ts). Both render
-in the footer on every page, plus the 404, the error page, `/privacy` and
-`/terms`.
+in [`apps/site/src/lib/site.ts:52-53`](../../apps/site/src/lib/site.ts). Both
+render in the footer on every page, plus the 404, the error page, `/privacy`
+and `/terms`.
 
 The comment above them already says to replace them before the site goes public.
 Beyond the trust cost of shipping an `example.com` address to a phone-first
@@ -38,18 +39,47 @@ Business Profile.
 
 **Blocked on a real staffed phone line, not on engineering.**
 
-### B3 — PILOT_CITY is null, so nothing on the site is geo-qualified
+### B3 — Resolved: PILOT_CITY is set, but the site cannot outrun its own shop count
 
-[`apps/site/src/lib/site.ts:29`](../../apps/site/src/lib/site.ts). No city name
-appears in any title, description, heading or body copy. The Coverage section
-falls back to a placeless string at
-[`apps/site/src/app/page.tsx:312`](../../apps/site/src/app/page.tsx).
+[`apps/site/src/lib/site.ts:32`](../../apps/site/src/lib/site.ts) sets
+`PILOT_CITY` to `"Pune"` as of 2026-09-05, closing spec §10 open decision #1.
+This is a real change, not cosmetic: the Coverage section on the homepage now
+renders "Live in Pune" instead of the placeless "We are onboarding shops right
+now" ([`apps/site/src/app/page.tsx:312`](../../apps/site/src/app/page.tsx)) —
+a public claim that the product works for someone standing in Pune, and the
+first geo-qualified sentence to exist anywhere on the site.
 
-For a product whose entire premise is "shops near you", the site currently ranks
-for no geo-qualified query at all. This is the single largest cap on organic
-upside, and it is **blocked on spec §10, not on us**. The placeholder is
-deliberate and the reasoning in that file is sound — do not route around it by
-inventing a city.
+**What this newly unblocks:** any title, description, heading or JSON-LD that
+names Pune honestly. Concretely, that is backlog Tier 2 items 15–16 (a
+geo-qualified metadata pass on `/`, and `areaServed: "Pune"` on `Organization`
+JSON-LD) — both cheap, both unblocked outright, not merely re-gated. A Google
+Business Profile (Tier 3 item 19) moves from "blocked on the city" to "blocked
+on B2," a real staffed phone number — a different and smaller problem, but
+still a blocker. `LocalBusiness` markup for the platform itself is not on this
+list at all: it needs a physical premises mivikto does not have, city or no
+city, and per-shop markup is off the table permanently on design grounds, not
+data grounds. See [structured-data.md](structured-data.md) and
+[keyword-map.md](keyword-map.md) for exactly what changed on each.
+
+**What this does not unblock:** location or category landing pages, or full
+`LocalBusiness` markup with an address and geo coordinates. A direct, read-only
+query of the production database on 2026-09-05 found 11 shops total, 3
+verified, all 11 with a location set, but only 4 within a generous 25 km ring
+of Pune's centre — and all 11 in the single MVP category, `mobile_electronics`.
+22 requests and 8 deals exist all-time. Four shops spread across a 25 km ring
+means most named Pune localities — Kothrud, Koregaon Park, Hadapsar, Viman
+Nagar, Baner, and the rest — would carry zero or one shop each. A page built on
+that density is thin content by Google's own definition, and at pilot stage it
+reads as a doorway page: a live ranking risk to the whole domain, not merely
+wasted writing effort.
+
+**The binding constraint on this workstream is now shop density, not the city
+decision.** The comment above `PILOT_CITY` in `site.ts` already anticipates the
+reverse of this: if density in Pune ever falls back to the point a posted
+request routinely reaches nobody, the value goes back to `null` rather than the
+copy being softened around it. The same discipline applies one level down — no
+locality gets named in copy or markup until it clears the gate in
+[backlog.md](backlog.md).
 
 ### B4 — apps/web is fully indexable, with one duplicated title
 
@@ -64,7 +94,7 @@ routes serve the identical title and description from
 crawler receives an app shell with no content.
 
 The marketing CTAs point at indexable query-string variants of `/login`
-([`apps/site/src/lib/site.ts:39`](../../apps/site/src/lib/site.ts)), on a domain
+([`apps/site/src/lib/site.ts:42`](../../apps/site/src/lib/site.ts)), on a domain
 with no crawl controls.
 
 Fix the robots signal. Do **not** remove `"use client"` from twelve routes for
@@ -130,7 +160,7 @@ a text-only card measurably costs click-through.
 ### H5 — The header and footer nav are dead links on /privacy and /terms
 
 `NAV_LINKS` are bare fragments — `#how-it-works`, `#for-shops`, `#pricing`,
-`#faq` ([`apps/site/src/lib/site.ts:60`](../../apps/site/src/lib/site.ts)) —
+`#faq` ([`apps/site/src/lib/site.ts:63`](../../apps/site/src/lib/site.ts)) —
 passed straight to `Link` in
 [`apps/site/src/components/site-header.tsx:20`](../../apps/site/src/components/site-header.tsx)
 and the footer. On `/privacy` they resolve to `/privacy#how-it-works`, an anchor
