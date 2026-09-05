@@ -10,7 +10,7 @@ import {
   type DisputeStatus,
 } from "@/lib/disputes";
 import { Badge, EmptyState, ErrorBanner, ghostButtonClass, InfoBanner } from "@/components/ui";
-import { Column, FilterBar, Pager, RecordList, Select } from "./shared";
+import { Column, FilterBar, Pager, RecordList, Select, contactLabel } from "./shared";
 
 interface DisputeRow {
   id: string;
@@ -28,10 +28,20 @@ interface DisputeRow {
     finalPrice: string;
     qrStatus: string;
     request: { productName: string };
-    customer: { id: string; phoneNumber: string; name: string | null };
+    customer: {
+      id: string;
+      phoneNumber: string | null;
+      email: string | null;
+      name: string | null;
+    };
   };
   shop: { id: string; shopName: string; verified: boolean; suspended: boolean };
-  raisedBy: { id: string; phoneNumber: string; name: string | null };
+  raisedBy: {
+    id: string;
+    phoneNumber: string | null;
+    email: string | null;
+    name: string | null;
+  };
 }
 
 const TAKE = 25;
@@ -96,7 +106,7 @@ export function DisputesTab({ onResolved }: { onResolved?: () => void }) {
             {DISPUTE_REASON_SHORT[r.reason]}
           </p>
           <p className="text-xs text-neutral-400 dark:text-neutral-500">
-            {r.raisedByParty === "customer" ? "Customer" : "Shop"} · {r.raisedBy.phoneNumber}
+            {r.raisedByParty === "customer" ? "Customer" : "Shop"} · {contactLabel(r.raisedBy)}
           </p>
           {r.details && (
             <p

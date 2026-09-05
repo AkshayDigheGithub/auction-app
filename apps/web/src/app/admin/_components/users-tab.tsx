@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge, EmptyState } from "@/components/ui";
-import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, Select } from "./shared";
+import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, Select, contactLabel } from "./shared";
 
 interface UserRow {
   id: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
+  email: string | null;
   name: string | null;
   role: string;
   createdAt: string;
@@ -64,7 +65,7 @@ export function UsersTab() {
       cell: (u) => (
         <>
           <p className="font-medium text-neutral-900 dark:text-neutral-100">{u.name ?? "—"}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">{u.phoneNumber}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">{contactLabel(u)}</p>
         </>
       ),
     },
@@ -113,7 +114,7 @@ export function UsersTab() {
             setQ(v);
             setSkip(0);
           }}
-          placeholder="Search name or phone…"
+          placeholder="Search name, phone or email…"
         />
         <Select
           value={role}

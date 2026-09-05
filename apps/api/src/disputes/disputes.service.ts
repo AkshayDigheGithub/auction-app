@@ -34,11 +34,17 @@ const DEAL_INCLUDE = {
       qrStatus: true,
       createdAt: true,
       request: { select: { productName: true } },
-      customer: { select: { id: true, phoneNumber: true, name: true } },
+      customer: {
+        select: { id: true, phoneNumber: true, email: true, name: true },
+      },
     },
   },
-  shop: { select: { id: true, shopName: true, verified: true, suspended: true } },
-  raisedBy: { select: { id: true, phoneNumber: true, name: true } },
+  shop: {
+    select: { id: true, shopName: true, verified: true, suspended: true },
+  },
+  raisedBy: {
+    select: { id: true, phoneNumber: true, email: true, name: true },
+  },
 } as const;
 
 /**

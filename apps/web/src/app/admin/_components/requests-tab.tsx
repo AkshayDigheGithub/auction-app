@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge, EmptyState } from "@/components/ui";
-import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, Select } from "./shared";
+import { Column, ExportButton, FilterBar, Pager, RecordList, SearchInput, Select, contactLabel } from "./shared";
 
 interface RequestRow {
   id: string;
@@ -13,7 +13,7 @@ interface RequestRow {
   createdAt: string;
   bids: { id: string }[];
   deal: { id: string } | null;
-  customer: { phoneNumber: string };
+  customer: { phoneNumber: string | null; email: string | null };
   productCategory: { id: string; name: string } | null;
   /** Null on requests posted before reach was recorded (AUC-59). */
   matchedShopCount: number | null;
@@ -65,7 +65,7 @@ export function RequestsTab() {
       cell: (r) => (
         <>
           <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.productName}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">{r.customer.phoneNumber}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">{contactLabel(r.customer)}</p>
         </>
       ),
     },
