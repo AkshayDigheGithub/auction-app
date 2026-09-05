@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { homeForRole } from "@/lib/role-routes";
+import { ResumeClerkSignIn } from "@/components/resume-clerk-sign-in";
 
 export default function Home() {
   const { user, ready } = useAuth();
@@ -16,6 +17,9 @@ export default function Home() {
 
   return (
     <main className="flex flex-1 flex-col justify-center gap-10 px-6 py-12">
+      {/* Landing here mid-sign-in means something went wrong on the way back
+          from Google; finish it rather than asking the user to start over. */}
+      <ResumeClerkSignIn />
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-600 text-2xl">
           🛍️
