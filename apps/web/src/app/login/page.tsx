@@ -15,7 +15,9 @@ import {
   CLERK_ENABLED,
   consumeSsoPending,
   forgetRole,
+  forgetSso,
   markSsoPending,
+  postSsoUrl,
   recallRole,
   rememberRole,
   ssoCallbackUrl,
@@ -131,8 +133,9 @@ function ClerkSignIn({
       // so a tampered client cannot claim an address it has not proven.
       const res = await api.post<AuthResponse>("/auth/clerk/verify", {
         sessionToken,
-        // The role the user actually picked, which survives the OAuth round
-        // trip in sessionStorage; `role` from the URL is the fallback.
+        // The role the user actually picked, parked in storage so it survives
+        // the OAuth round trip; `?role=` in the URL is the fallback, and the
+        // return URL now carries it for exactly that reason.
         role: recallRole() ?? role,
       });
       forgetRole();
@@ -216,23 +219,36 @@ function ClerkSignIn({
     markSsoPending();
 
     try {
-      // Absolute, not a bare path — sso() parses these with the URL
-      // constructor. See ssoCallbackUrl() for why.
-      const callback = ssoCallbackUrl();
+      // Two different destinations, and they are not interchangeable.
+      //
+      // `redirectUrl` is where a *completed* sign-in lands, and it has to be
+      // this screen: /login is the only place that exchanges a Clerk session
+      // for one of our tokens. Both were previously set to /sso-callback, which
+      // named no destination at all for the completed case — so Clerk fell
+      // through to its own chain and, at the end of it, to a default of "/".
+      // That is the marketing landing page: signed in with Clerk, signed out of
+      // the app, and asked to pick a role and start over.
+      //
+      // `redirectCallbackUrl` is the other case — no session, more information
+      // needed — and that is what /sso-callback is for. It hands back here too,
+      // where the transfer below can finish the job.
+      //
+      // Absolute, not bare paths: sso() parses these with the URL constructor.
+      // See ssoCallbackUrl() for why the origin is read off the window.
       const { error } = await resource.sso({
         strategy: "oauth_google",
-        redirectUrl: callback,
-        redirectCallbackUrl: callback,
+        redirectUrl: postSsoUrl(role),
+        redirectCallbackUrl: ssoCallbackUrl(),
       });
       // Only reached if the handshake failed — on success the browser has
       // already navigated away.
       if (error) {
-        consumeSsoPending();
+        forgetSso();
         onError(error.message || "Could not continue with Google");
         setStarting(false);
       }
     } catch (err) {
-      consumeSsoPending();
+      forgetSso();
       onError(err instanceof Error ? err.message : "Could not continue with Google");
       setStarting(false);
     }
