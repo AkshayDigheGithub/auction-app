@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth as useClerkAuth, useClerk, useSignIn, useUser } from "@clerk/nextjs";
+import { useAuth as useClerkAuth, useClerk, useSignIn, useSignUp, useUser } from "@clerk/nextjs";
 import { api, ApiError } from "@/lib/api";
 import {
   MSG91_WIDGET_ENABLED,
@@ -58,16 +58,31 @@ const OTP_LOGIN_ENABLED =
  * Rendered only when CLERK_ENABLED, because Clerk's hooks throw outside the
  * ClerkProvider that the same constant gates in app/layout.tsx.
  *
- * The exchange is deliberately gated on `consumeSsoPending()` rather than on
- * Clerk's `isSignedIn`. Keying it on the latter treated "Clerk happens to hold
- * a session" as consent to sign in, and since Clerk's session cookie outlives
- * its ~60s access token by days, that was true on nearly every return visit to
- * this page. It meant the back button could never leave /login, a phone handed
- * over still signed in its previous owner, and logging out bounced through here
- * and collected a fresh 30-day token on the way past.
+ * Two things this screen has to get right, and got wrong before.
  *
- * So: finish automatically only what this browser just started, and make every
- * other path an explicit tap.
+ * First, whose sign-in to finish. The exchange is gated on
+ * `consumeSsoPending()` rather than Clerk's `isSignedIn`. Keying it on the
+ * latter treated "Clerk happens to hold a session" as consent to sign in, and
+ * since Clerk's session cookie outlives its ~60s access token by days, that was
+ * true on nearly every return visit. It meant the back button could never leave
+ * /login, a phone handed over still signed in its previous owner, and logging
+ * out bounced through here and collected a fresh 30-day token on the way past.
+ *
+ * Second, first-time users. `signIn.sso()` is strictly a sign-in: its params
+ * have no `signUpIfMissing`, so a Google account with no user behind it cannot
+ * complete one. Clerk normally papers over this by transferring the attempt to
+ * a sign-up on its own, but that transfer is unavailable when the instance is
+ * in restricted or waitlist mode — and then the callback comes back with no
+ * session and the error `external_account_not_found`, which this screen used to
+ * swallow entirely, leaving a working Google account staring at a button that
+ * did nothing.
+ *
+ * So the transfer is explicit here. Coming back without a session, a sign-in
+ * that Clerk marks transferable is completed with `signUp.create({ transfer })`
+ * — the identity Google already verified, carried over without a second round
+ * trip. The mirror case is handled too: someone who took the "create an
+ * account" path but already had one transfers back the other way. Only when
+ * neither applies do we ask for a fresh `signUp.sso()`.
  */
 function ClerkSignIn({
   role,
@@ -79,16 +94,26 @@ function ClerkSignIn({
   onError: (message: string | null) => void;
 }) {
   const { signIn, fetchStatus } = useSignIn();
-  const { isSignedIn, getToken } = useClerkAuth();
+  const { signUp } = useSignUp();
+  const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
 
+  /**
+   * What this mount is doing about the Clerk state it found.
+   *
+   * - `idle` — nothing in flight; offer to sign in.
+   * - `resuming` — a session we are entitled to; exchange it for one of ours.
+   * - `confirm` — a session we did not just create; name it and ask first.
+   * - `transferring` — the OAuth identity is verified but the account on our
+   *   side still has to be created (or matched); no second trip to Google.
+   * - `no-account` — came back with nothing usable; offer an explicit sign-up.
+   */
+  const [phase, setPhase] = useState<
+    "idle" | "resuming" | "confirm" | "transferring" | "no-account"
+  >("idle");
   const [starting, setStarting] = useState(false);
   const [switching, setSwitching] = useState(false);
-  // A Clerk session we did not just create, or one whose exchange failed.
-  // Either way it takes a tap before it becomes one of our sessions, so the
-  // account being resumed is always on screen before it is resumed.
-  const [needsConfirm, setNeedsConfirm] = useState(false);
 
   // Clerk's hooks re-render on their own schedule; without these a second
   // render mid-request would post the token twice, or rule on the session
@@ -116,26 +141,73 @@ function ClerkSignIn({
       inFlight.current = false;
       // The Clerk session is still live, so drop back to the explicit button
       // rather than leaving a dead screen with only an error on it.
-      setNeedsConfirm(true);
+      setPhase("confirm");
       onError(err instanceof ApiError ? err.message : (err as Error).message);
     }
   }, [getToken, role, onSession, onError]);
 
+  // Rules once on whatever came back, and only after Clerk has settled —
+  // `isSignedIn` is false while it is still hydrating, and deciding on that
+  // would read every returning user as a stranger.
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isLoaded) return;
     void (async () => {
       if (decided.current) return;
       decided.current = true;
-      // Only ever resume a sign-in this browser started. A session that merely
-      // happens to exist is not consent — it is usually just whoever used the
-      // phone last — so anything else has to be confirmed by tapping.
-      if (consumeSsoPending()) await runExchange();
-      else setNeedsConfirm(true);
-    })();
-  }, [isSignedIn, runExchange]);
 
-  async function start() {
-    if (!signIn) return;
+      // A pending marker means this browser started the redirect that just
+      // came back, so finishing it is what the user already asked for.
+      // Anything else is a pre-existing session and has to be confirmed.
+      const invited = consumeSsoPending();
+
+      if (isSignedIn) {
+        setPhase(invited ? "resuming" : "confirm");
+        return;
+      }
+      // An ordinary first visit: no session, nothing in flight.
+      if (!invited) return;
+
+      // Back from Google with no session. Usually this Google account has no
+      // user on our side yet — which is a sign-up, not a failure.
+      if (signIn?.isTransferable || signUp?.isTransferable) setPhase("transferring");
+      else setPhase("no-account");
+    })();
+  }, [isLoaded, isSignedIn, signIn, signUp]);
+
+  // Carries a verified OAuth identity across to whichever resource can finish
+  // it. Clerk sets exactly one of these when an attempt cannot complete on its
+  // own, so the direction is read from Clerk rather than assumed.
+  useEffect(() => {
+    if (phase !== "transferring") return;
+    void (async () => {
+      if (!signIn || !signUp) return;
+      const { error } = signIn.isTransferable
+        ? await signUp.create({ transfer: true })
+        : await signIn.create({ transfer: true });
+
+      if (error) {
+        onError(error.message || "Could not finish setting up your account");
+        setPhase("no-account");
+        return;
+      }
+      // A session exists now (or is about to). The effect below waits for
+      // Clerk to publish it rather than racing getToken() against it.
+      setPhase("resuming");
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "resuming" || !isSignedIn) return;
+    void (async () => {
+      await runExchange();
+    })();
+  }, [phase, isSignedIn, runExchange]);
+
+  /** Shared by both entry points — only the resource driving it differs. */
+  async function beginSso(kind: "sign-in" | "sign-up") {
+    const resource = kind === "sign-in" ? signIn : signUp;
+    if (!resource) return;
     onError(null);
     setStarting(true);
 
@@ -147,7 +219,7 @@ function ClerkSignIn({
       // Absolute, not a bare path — sso() parses these with the URL
       // constructor. See ssoCallbackUrl() for why.
       const callback = ssoCallbackUrl();
-      const { error } = await signIn.sso({
+      const { error } = await resource.sso({
         strategy: "oauth_google",
         redirectUrl: callback,
         redirectCallbackUrl: callback,
@@ -156,12 +228,12 @@ function ClerkSignIn({
       // already navigated away.
       if (error) {
         consumeSsoPending();
-        onError(error.message || "Could not sign in with Google");
+        onError(error.message || "Could not continue with Google");
         setStarting(false);
       }
     } catch (err) {
       consumeSsoPending();
-      onError(err instanceof Error ? err.message : "Could not sign in with Google");
+      onError(err instanceof Error ? err.message : "Could not continue with Google");
       setStarting(false);
     }
   }
@@ -177,7 +249,7 @@ function ClerkSignIn({
     try {
       await signOut();
       decided.current = false;
-      setNeedsConfirm(false);
+      setPhase("idle");
     } catch {
       onError("Could not switch accounts. Check your connection and try again.");
     } finally {
@@ -185,10 +257,19 @@ function ClerkSignIn({
     }
   }
 
+  if (phase === "transferring") {
+    return (
+      <button type="button" disabled className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
+        <Spinner className="h-4 w-4" />
+        Setting up your account…
+      </button>
+    );
+  }
+
   // Deliberately spinner-first for a live session: on the path that matters —
   // coming back from Google — showing the confirm button for the frame before
   // the decision lands would offer a tap the user has already made.
-  if (isSignedIn && !needsConfirm && !switching) {
+  if (isSignedIn && phase !== "confirm" && !switching) {
     return (
       <button type="button" disabled className={`${primaryButtonClass} flex items-center justify-center gap-2`}>
         <Spinner className="h-4 w-4" />
@@ -206,9 +287,8 @@ function ClerkSignIn({
         <button
           type="button"
           onClick={() => {
-            setNeedsConfirm(false);
+            setPhase("resuming");
             onError(null);
-            void runExchange();
           }}
           disabled={switching}
           className={`${primaryButtonClass} flex items-center justify-center gap-2`}
@@ -228,10 +308,40 @@ function ClerkSignIn({
     );
   }
 
+  // Google verified the account but there is nobody behind it here, and Clerk
+  // offered no transfer to carry it over. Say so, and offer the sign-up
+  // outright rather than the same button that just failed.
+  if (phase === "no-account") {
+    return (
+      <div className="flex flex-col gap-3">
+        <InfoBanner tone="amber">
+          No account here yet for that Google account.
+        </InfoBanner>
+        <button
+          type="button"
+          onClick={() => void beginSso("sign-up")}
+          disabled={starting}
+          className={`${primaryButtonClass} flex items-center justify-center gap-2`}
+        >
+          {starting && <Spinner className="h-4 w-4" />}
+          {starting ? "Opening Google…" : "Create your account with Google"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void beginSso("sign-in")}
+          disabled={starting}
+          className={`${secondaryButtonClass} flex items-center justify-center gap-2`}
+        >
+          Try signing in again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
-      onClick={start}
+      onClick={() => void beginSso("sign-in")}
       disabled={fetchStatus === "fetching" || starting}
       className={`${primaryButtonClass} flex items-center justify-center gap-2`}
     >
