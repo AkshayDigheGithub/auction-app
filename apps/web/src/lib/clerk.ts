@@ -26,3 +26,21 @@ export const CLERK_ENABLED = Boolean(CLERK_PUBLISHABLE_KEY);
 
 /** Where Clerk's OAuth popup lands before handing control back to the app. */
 export const SSO_CALLBACK_PATH = "/sso-callback";
+
+/**
+ * The same route as an absolute URL.
+ *
+ * `signIn.sso()` parses these parameters with the URL constructor, which has no
+ * base to resolve against and throws on a bare path — "/sso-callback cannot be
+ * parsed as a URL". The older `authenticateWithRedirect` accepted relative
+ * paths, so this is easy to carry over wrong.
+ *
+ * Deliberately built from `window.location.origin` rather than a configured
+ * value: the app is served from several hostnames (the custom domain, the
+ * Vercel production alias, and a preview URL per branch), and an origin pinned
+ * to any one of them sends the popup back to a different site than the one that
+ * opened it.
+ */
+export function ssoCallbackUrl(): string {
+  return `${window.location.origin}${SSO_CALLBACK_PATH}`;
+}

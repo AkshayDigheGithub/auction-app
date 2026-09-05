@@ -12,9 +12,21 @@ export const dynamic = "force-dynamic";
  * the handshake and closes the popup; the login screen — still open in the
  * parent window — then sees an active session and exchanges it for one of our
  * own tokens.
+ *
+ * Both fallbacks point back at /login rather than anywhere further in: it is
+ * the only screen that performs that exchange, so a flow that lands anywhere
+ * else ends up signed in with Clerk and signed out of the app. /login is also
+ * safe to reach while already signed in — its effect just completes the
+ * exchange and forwards on by role.
  */
 function ClerkCallback() {
-  return <AuthenticateWithRedirectCallback />;
+  return (
+    <AuthenticateWithRedirectCallback
+      signInFallbackRedirectUrl="/login"
+      signUpFallbackRedirectUrl="/login"
+      continueSignUpUrl="/login"
+    />
+  );
 }
 
 /**
