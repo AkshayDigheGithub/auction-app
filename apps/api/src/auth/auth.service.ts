@@ -10,10 +10,31 @@ import { randomInt } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OTP_PROVIDER, type OtpProvider } from './otp-provider.interface';
 import { Msg91WidgetService } from './msg91-widget.service';
+import { GoogleAuthService } from './google-auth.service';
 
 interface PendingOtp {
   code: string;
   expiresAt: number;
+}
+
+/**
+ * How a caller proved who they are: a phone number (our OTP or MSG91's) or an
+ * email address (a Google ID token). Both are already verified by the time they
+ * reach issueSession — it never checks a credential, it only decides which
+ * unique column to key the user on.
+ */
+type Identity =
+  { kind: 'phone'; phoneNumber: string } | { kind: 'email'; email: string };
+
+/**
+ * The unique-column lookup for an identity. Shared by the admin guard and the
+ * upsert below so the row we check can never be a different row from the one we
+ * then sign a session for.
+ */
+function identityWhere(identity: Identity) {
+  return identity.kind === 'phone'
+    ? { phoneNumber: identity.phoneNumber }
+    : { email: identity.email };
 }
 
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -48,6 +69,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(OTP_PROVIDER) private readonly otpProvider: OtpProvider,
     private readonly msg91Widget: Msg91WidgetService,
+    private readonly googleAuth: GoogleAuthService,
   ) {}
 
   async requestOtp(phoneNumber: string): Promise<{ devCode?: string }> {
@@ -83,7 +105,11 @@ export class AuthService {
     // naturally makes with the code still on their screen returned "Invalid
     // or expired OTP" and sent them looking for a bug in the OTP itself.
     // A wrong code is already rejected above, so this does not widen guessing.
-    const session = await this.issueSession(phoneNumber, role, name);
+    const session = await this.issueSession(
+      { kind: 'phone', phoneNumber },
+      role,
+      name,
+    );
     this.pending.delete(phoneNumber);
     return session;
   }
@@ -99,7 +125,21 @@ export class AuthService {
     name?: string,
   ) {
     const phoneNumber = await this.msg91Widget.verifyAccessToken(accessToken);
-    return this.issueSession(phoneNumber, role, name);
+    return this.issueSession({ kind: 'phone', phoneNumber }, role, name);
+  }
+
+  /**
+   * Google flow: the browser sends only the ID token Google issued. The email
+   * comes back from Google's verified payload and is never read off the
+   * request — see GoogleAuthService for why that matters.
+   */
+  async verifyGoogleToken(
+    idToken: string,
+    role: 'customer' | 'shop_owner' | 'admin',
+    name?: string,
+  ) {
+    const email = await this.googleAuth.verifyIdToken(idToken);
+    return this.issueSession({ kind: 'email', email }, role, name);
   }
 
   /**
@@ -108,14 +148,14 @@ export class AuthService {
    * verification paths cannot drift on who is allowed to become an admin.
    */
   private async issueSession(
-    phoneNumber: string,
+    identity: Identity,
     role: 'customer' | 'shop_owner' | 'admin',
     name?: string,
   ) {
+    const where = identityWhere(identity);
+
     if (role === 'admin') {
-      const existing = await this.prisma.db.user.findUnique({
-        where: { phoneNumber },
-      });
+      const existing = await this.prisma.db.user.findUnique({ where });
       if (!existing || existing.role !== 'admin') {
         throw new ForbiddenException(
           'Admin accounts cannot self-register — ask an existing admin to grant this role directly in the database.',
@@ -124,14 +164,15 @@ export class AuthService {
     }
 
     const user = await this.prisma.db.user.upsert({
-      where: { phoneNumber },
+      where,
       update: {},
-      create: { phoneNumber, role, name },
+      create: { ...where, role, name },
     });
 
     const token = this.jwtService.sign({
       sub: user.id,
       phoneNumber: user.phoneNumber,
+      email: user.email,
       role: user.role,
     });
 

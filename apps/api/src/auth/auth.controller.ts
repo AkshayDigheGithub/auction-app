@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { VerifyWidgetTokenDto } from './dto/verify-widget-token.dto';
+import { VerifyGoogleTokenDto } from './dto/verify-google-token.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
@@ -18,13 +19,28 @@ export class AuthController {
 
   @Post('otp/verify')
   verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.phoneNumber, dto.code, dto.role, dto.name);
+    return this.authService.verifyOtp(
+      dto.phoneNumber,
+      dto.code,
+      dto.role,
+      dto.name,
+    );
   }
 
   /** MSG91 OTP widget: exchange its access token for one of our sessions. */
   @Post('widget/verify')
   verifyWidgetToken(@Body() dto: VerifyWidgetTokenDto) {
-    return this.authService.verifyWidgetToken(dto.accessToken, dto.role, dto.name);
+    return this.authService.verifyWidgetToken(
+      dto.accessToken,
+      dto.role,
+      dto.name,
+    );
+  }
+
+  /** Google sign-in: exchange a Google ID token for one of our sessions (AUC-87). */
+  @Post('google/verify')
+  verifyGoogleToken(@Body() dto: VerifyGoogleTokenDto) {
+    return this.authService.verifyGoogleToken(dto.idToken, dto.role, dto.name);
   }
 
   @UseGuards(JwtAuthGuard)

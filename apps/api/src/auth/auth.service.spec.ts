@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { OtpProvider } from './otp-provider.interface';
 import type { Msg91WidgetService } from './msg91-widget.service';
+import type { GoogleAuthService } from './google-auth.service';
 import type { JwtService } from '@nestjs/jwt';
 
 function makeService() {
@@ -19,6 +20,7 @@ function makeService() {
     {} as JwtService,
     otpProvider,
     {} as Msg91WidgetService,
+    {} as GoogleAuthService,
   );
   return { service, sent };
 }
@@ -101,15 +103,24 @@ function makeVerifiableService(options: { failFirstUpsert?: boolean } = {}) {
     db: {
       user: {
         findUnique: () => Promise.resolve(null),
-        upsert: ({ where, create }: { where: { phoneNumber: string }; create: { role: string; name?: string } }) => {
+        upsert: ({
+          where,
+          create,
+        }: {
+          where: { phoneNumber?: string; email?: string };
+          create: { role: string; name?: string };
+        }) => {
           upserts += 1;
           if (options.failFirstUpsert && upserts === 1) {
             // What Neon does to a pooled connection that has gone idle.
-            return Promise.reject(new Error("Connection terminated unexpectedly"));
+            return Promise.reject(
+              new Error('Connection terminated unexpectedly'),
+            );
           }
           return Promise.resolve({
-            id: "user-1",
-            phoneNumber: where.phoneNumber,
+            id: 'user-1',
+            phoneNumber: where.phoneNumber ?? null,
+            email: where.email ?? null,
             role: create.role,
             name: create.name ?? null,
           });
@@ -118,53 +129,189 @@ function makeVerifiableService(options: { failFirstUpsert?: boolean } = {}) {
     },
   } as unknown as PrismaService;
 
-  const jwtService = { sign: () => "signed-token" } as unknown as JwtService;
+  const jwtService = { sign: () => 'signed-token' } as unknown as JwtService;
 
-  const service = new AuthService(prisma, jwtService, otpProvider, {} as Msg91WidgetService);
+  const service = new AuthService(
+    prisma,
+    jwtService,
+    otpProvider,
+    {} as Msg91WidgetService,
+    {} as GoogleAuthService,
+  );
   return { service, sent };
 }
 
-describe("AuthService.verifyOtp — when the code is consumed", () => {
-  it("issues a session and consumes the code exactly once", async () => {
+describe('AuthService.verifyOtp — when the code is consumed', () => {
+  it('issues a session and consumes the code exactly once', async () => {
     const { service, sent } = makeVerifiableService();
-    await service.requestOtp("+919876543210");
+    await service.requestOtp('+919876543210');
     const { code } = sent[0];
 
-    const res = await service.verifyOtp("+919876543210", code, "customer");
-    expect(res.token).toBe("signed-token");
+    const res = await service.verifyOtp('+919876543210', code, 'customer');
+    expect(res.token).toBe('signed-token');
 
     // Replay must fail: the code is single-use on the success path.
-    await expect(service.verifyOtp("+919876543210", code, "customer")).rejects.toThrow(
-      "Invalid or expired OTP",
-    );
+    await expect(
+      service.verifyOtp('+919876543210', code, 'customer'),
+    ).rejects.toThrow('Invalid or expired OTP');
   });
 
-  it("leaves the code usable when issuing the session fails", async () => {
+  it('leaves the code usable when issuing the session fails', async () => {
     // The bug this guards: a dropped database connection burned the code, so
     // the retry with the code still on screen reported "Invalid or expired
     // OTP" — pointing at the OTP instead of at the real failure.
     const { service, sent } = makeVerifiableService({ failFirstUpsert: true });
-    await service.requestOtp("+919876543210");
+    await service.requestOtp('+919876543210');
     const { code } = sent[0];
 
-    await expect(service.verifyOtp("+919876543210", code, "customer")).rejects.toThrow(
-      "Connection terminated unexpectedly",
-    );
+    await expect(
+      service.verifyOtp('+919876543210', code, 'customer'),
+    ).rejects.toThrow('Connection terminated unexpectedly');
 
-    const res = await service.verifyOtp("+919876543210", code, "customer");
-    expect(res.token).toBe("signed-token");
+    const res = await service.verifyOtp('+919876543210', code, 'customer');
+    expect(res.token).toBe('signed-token');
   });
 
-  it("still rejects a wrong code, and leaves the real one usable", async () => {
+  it('still rejects a wrong code, and leaves the real one usable', async () => {
     const { service, sent } = makeVerifiableService();
-    await service.requestOtp("+919876543210");
+    await service.requestOtp('+919876543210');
     const { code } = sent[0];
 
-    await expect(service.verifyOtp("+919876543210", "000000", "customer")).rejects.toThrow(
-      "Invalid or expired OTP",
+    await expect(
+      service.verifyOtp('+919876543210', '000000', 'customer'),
+    ).rejects.toThrow('Invalid or expired OTP');
+    await expect(
+      service.verifyOtp('+919876543210', code, 'customer'),
+    ).resolves.toMatchObject({
+      token: 'signed-token',
+    });
+  });
+});
+
+/**
+ * Google sign-in (AUC-87). The service under test never sees a Google token —
+ * GoogleAuthService is stubbed — so these cover what AuthService is actually
+ * responsible for: keying the session on the *verified* address, and applying
+ * the same admin guard the phone paths get.
+ */
+function makeGoogleService(
+  options: {
+    verifiedEmail?: string;
+    verifyError?: Error;
+    existingUser?: unknown;
+  } = {},
+) {
+  const lookups: Array<Record<string, unknown>> = [];
+
+  const prisma = {
+    db: {
+      user: {
+        findUnique: ({ where }: { where: Record<string, unknown> }) => {
+          lookups.push(where);
+          return Promise.resolve(options.existingUser ?? null);
+        },
+        upsert: ({
+          where,
+          create,
+        }: {
+          where: { phoneNumber?: string; email?: string };
+          create: { role: string; name?: string };
+        }) => {
+          lookups.push(where);
+          return Promise.resolve({
+            id: 'user-google-1',
+            phoneNumber: where.phoneNumber ?? null,
+            email: where.email ?? null,
+            role: create.role,
+            name: create.name ?? null,
+          });
+        },
+      },
+    },
+  } as unknown as PrismaService;
+
+  const googleAuth = {
+    verifyIdToken: () =>
+      options.verifyError
+        ? Promise.reject(options.verifyError)
+        : Promise.resolve(options.verifiedEmail ?? 'shopkeeper@example.com'),
+  } as unknown as GoogleAuthService;
+
+  const service = new AuthService(
+    prisma,
+    { sign: () => 'signed-token' } as unknown as JwtService,
+    { sendOtp: () => Promise.resolve() },
+    {} as Msg91WidgetService,
+    googleAuth,
+  );
+
+  return { service, lookups };
+}
+
+describe('AuthService.verifyGoogleToken', () => {
+  it('pins the session to the email Google verified', async () => {
+    const { service, lookups } = makeGoogleService({
+      verifiedEmail: 'real@example.com',
+    });
+
+    const res = await service.verifyGoogleToken('an-id-token', 'customer');
+
+    expect(res.token).toBe('signed-token');
+    expect(res.user).toMatchObject({
+      email: 'real@example.com',
+      phoneNumber: null,
+    });
+    // Every lookup keys on the verified email, never on a phone number.
+    for (const where of lookups) {
+      expect(where).toEqual({ email: 'real@example.com' });
+    }
+  });
+
+  it('creates the user with no phone number', async () => {
+    // The regression this guards: phone_number used to be NOT NULL, so a
+    // Google sign-in could not be written at all (AUC-86).
+    const { service } = makeGoogleService();
+    const res = await service.verifyGoogleToken(
+      'an-id-token',
+      'customer',
+      'Asha',
     );
-    await expect(service.verifyOtp("+919876543210", code, "customer")).resolves.toMatchObject({
-      token: "signed-token",
+    expect(res.user.phoneNumber).toBeNull();
+    expect(res.user.name).toBe('Asha');
+  });
+
+  it('surfaces a rejected token and issues nothing', async () => {
+    const { service, lookups } = makeGoogleService({
+      verifyError: new Error('Could not verify this login'),
+    });
+
+    await expect(
+      service.verifyGoogleToken('forged', 'customer'),
+    ).rejects.toThrow('Could not verify this login');
+    // Nothing was looked up or created off an unverified token.
+    expect(lookups).toHaveLength(0);
+  });
+
+  it('refuses admin self-registration, exactly as the phone paths do', async () => {
+    const { service } = makeGoogleService({
+      verifiedEmail: 'nobody@example.com',
+    });
+
+    await expect(
+      service.verifyGoogleToken('an-id-token', 'admin'),
+    ).rejects.toThrow('Admin accounts cannot self-register');
+  });
+
+  it('lets an existing admin sign in with Google', async () => {
+    const { service } = makeGoogleService({
+      verifiedEmail: 'boss@example.com',
+      existingUser: { id: 'admin-1', email: 'boss@example.com', role: 'admin' },
+    });
+
+    await expect(
+      service.verifyGoogleToken('an-id-token', 'admin'),
+    ).resolves.toMatchObject({
+      token: 'signed-token',
     });
   });
 });
