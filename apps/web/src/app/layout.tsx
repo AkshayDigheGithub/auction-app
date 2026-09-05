@@ -7,6 +7,7 @@ import { CLERK_ENABLED } from "@/lib/clerk";
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </AppShell>
           </AuthProvider>
         </AuthShell>
+        <Analytics />
       </body>
     </html>
   );
