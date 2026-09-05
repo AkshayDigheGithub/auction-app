@@ -6,7 +6,7 @@ import { CONTACT_EMAIL, CONTACT_PHONE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Terms",
   description:
-    "Nearby Bids connects buyers with nearby shops. The sale itself is between you and the shop — here is what that means in practice.",
+    "mivikto.store connects buyers with nearby shops. The sale itself is between you and the shop — here is what that means in practice.",
 };
 
 /*
@@ -30,7 +30,7 @@ export default function TermsPage() {
       updated="29 August 2026"
       intro={
         <>
-          Nearby Bids is a way to find shops near you and get prices from them. The sale itself is between you and the
+          mivikto.store is a way to find shops near you and get prices from them. The sale itself is between you and the
           shop. That one sentence explains most of what follows.
         </>
       }

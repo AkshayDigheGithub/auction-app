@@ -6,7 +6,7 @@ import { CONTACT_EMAIL, CONTACT_PHONE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Privacy",
   description:
-    "What Nearby Bids collects, why, and who can see it. We do not sell your phone number and we do not send marketing messages.",
+    "What mivikto.store collects, why, and who can see it. We do not sell your phone number and we do not send marketing messages.",
 };
 
 /*

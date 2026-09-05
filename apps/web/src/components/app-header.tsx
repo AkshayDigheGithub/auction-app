@@ -95,7 +95,7 @@ export function AppHeader() {
   return (
     <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-3 dark:border-neutral-800">
       <Link href="/" className="text-base font-bold tracking-tight text-orange-600 dark:text-orange-400">
-        Nearby Bids
+        mivikto.store
       </Link>
       {user && (
         <div className="flex items-center gap-2 text-xs">

@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nearby Bids",
+  title: "mivikto.store",
   description: "Post what you want to buy, let nearby shops bid on it.",
 };
 
