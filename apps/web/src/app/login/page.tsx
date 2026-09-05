@@ -11,7 +11,13 @@ import {
   sendWidgetOtp,
   verifyWidgetOtp,
 } from "@/lib/msg91-widget";
-import { CLERK_ENABLED, ssoCallbackUrl } from "@/lib/clerk";
+import {
+  CLERK_ENABLED,
+  forgetRole,
+  recallRole,
+  rememberRole,
+  ssoCallbackUrl,
+} from "@/lib/clerk";
 import { useAuth, type Role } from "@/lib/auth-context";
 import { ErrorBanner, InfoBanner, inputClass, labelClass, primaryButtonClass, Spinner } from "@/components/ui";
 
@@ -76,8 +82,11 @@ function ClerkSignIn({
         // so a tampered client cannot claim an address it has not proven.
         const res = await api.post<AuthResponse>("/auth/clerk/verify", {
           sessionToken,
-          role,
+          // The role the user actually picked, which survives the OAuth round
+          // trip in sessionStorage; `role` from the URL is the fallback.
+          role: recallRole() ?? role,
         });
+        forgetRole();
         onSession(res);
       } catch (err) {
         exchanging.current = false;
@@ -87,39 +96,34 @@ function ClerkSignIn({
   }, [isSignedIn, getToken, role, onSession, onError]);
 
   async function start() {
-    if (!signIn) return;
+    // Already signed in with Clerk, just not yet with us — the effect above is
+    // handling it. Starting a second sign-in here is what produced the blank
+    // popup: sso() will not open an attempt while a session is active, so the
+    // window it was handed stayed on about:blank.
+    if (!signIn || isSignedIn) return;
     onError(null);
-
-    // Opened synchronously inside the click handler — a window opened later,
-    // after an await, is treated as unsolicited and blocked.
-    const popup = window.open("about:blank", "", "width=520,height=640");
-    if (!popup) {
-      onError("Allow pop-ups for this site, then try again.");
-      return;
-    }
-
     setStarting(true);
+
+    // Survives the trip to Google and back; the URL's ?role= does not.
+    rememberRole(role);
+
     try {
       // Absolute, not a bare path — sso() parses these with the URL
       // constructor. See ssoCallbackUrl() for why.
       const callback = ssoCallbackUrl();
       const { error } = await signIn.sso({
         strategy: "oauth_google",
-        // Both point at the callback route: it runs inside the popup, finishes
-        // the handshake and closes itself. The login screen is still open in
-        // the parent window, where the effect above picks the session up.
         redirectUrl: callback,
         redirectCallbackUrl: callback,
-        popup,
       });
+      // Only reached if the handshake failed — on success the browser has
+      // already navigated away.
       if (error) {
-        popup.close();
         onError(error.message || "Could not sign in with Google");
+        setStarting(false);
       }
     } catch (err) {
-      popup.close();
       onError(err instanceof Error ? err.message : "Could not sign in with Google");
-    } finally {
       setStarting(false);
     }
   }
