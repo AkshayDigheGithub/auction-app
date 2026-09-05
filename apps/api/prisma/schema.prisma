@@ -111,9 +111,16 @@ enum DisputeStatus {
   dismissed
 }
 
+// A user is identified by a phone number, an email, or both — never neither.
+//
+// Phone was the only identifier while OTP was the only way in (AUC-7). Google
+// sign-in (AUC-85) arrives with a verified email and no phone, so both columns
+// are nullable and a CHECK constraint in the migration enforces "at least one".
+// Postgres allows many NULLs in a unique index, so both stay unique.
 model User {
   id          String   @id @default(cuid())
-  phoneNumber String   @unique @map("phone_number")
+  phoneNumber String?  @unique @map("phone_number")
+  email       String?  @unique
   name        String?
   role        Role
   createdAt   DateTime @default(now()) @map("created_at")
