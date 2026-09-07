@@ -1,0 +1,18 @@
+-- Shop owner contact number (AUC-89).
+--
+-- Google sign-in (AUC-85) means a shop owner can arrive with an email and no
+-- phone number, but three things still assume a shop is reachable by phone:
+-- admin verification is a phone call (spec §4), dispute adjudication for
+-- `shop_unreachable` / `customer_no_show` needs both parties contactable, and
+-- a phone number is what makes registering ten shops cost something.
+--
+-- Deliberately on shops rather than users: users.phone_number is globally
+-- unique, and family-run shops routinely share one number between owners, or
+-- use a number that already belongs to a customer account. So this column is
+-- NOT unique.
+--
+-- Nullable so existing shops are untouched — they keep whatever number their
+-- owner already has on users.phone_number. New onboarding requires it at the
+-- application layer (UpsertShopDto), which is where the "existing shops keep
+-- working" and "new shops must provide one" rules can coexist.
+ALTER TABLE "shops" ADD COLUMN "contact_phone" TEXT;

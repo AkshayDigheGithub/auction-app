@@ -23,6 +23,11 @@ import { UpdateRateDto } from './dto/update-rate.dto';
 import { SuspendShopDto } from './dto/suspend-shop.dto';
 import { UpdateShopCategoriesDto } from './dto/update-shop-categories.dto';
 import { ResolveReversalDto } from './dto/resolve-reversal.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import type {
+  DisputeReason,
+  DisputeStatus,
+} from '../../generated/prisma/client.js';
 import {
   CreateProductCategoryDto,
   UpdateProductCategoryDto,
@@ -102,6 +107,41 @@ export class AdminController {
     });
   }
 
+  @Get('users')
+  users(
+    @Query('q') q?: string,
+    @Query('role') role?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.adminService.listUsers({
+      q,
+      role,
+      from,
+      to,
+      skip: num(skip),
+      take: num(take),
+    });
+  }
+
+  // -------------------------------------------------------------- reports
+
+  /**
+   * Radius reach report (AUC-95) — matched/notified shops per request, bids per
+   * request, and the zero-reach breakdown that separates a geography problem
+   * from a catalogue one from a billing one.
+   *
+   * Feeds the day-30 decision on the bid radius. It reads requests, bids and
+   * deals for the window rather than paging, because a percentile over one page
+   * of results is not a percentile.
+   */
+  @Get('reports/radius-reach')
+  radiusReachReport(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.adminService.radiusReachReport({ from, to });
+  }
+
   // --------------------------------------------------------------- export
 
   /** CSV export respecting the same filters as the list views (AUC-71). */
@@ -127,6 +167,9 @@ export class AdminController {
         break;
       case 'shops':
         rows = (await this.adminService.listShops(opts)).rows;
+        break;
+      case 'users':
+        rows = (await this.adminService.listUsers(opts)).rows;
         break;
       case 'ledger':
         rows = (await this.adminService.shopLedger(query.shopId, opts)).rows;
@@ -313,6 +356,44 @@ export class AdminController {
     @Body() dto: ResolveReversalDto,
   ) {
     return this.adminService.rejectReversal(id, dto.note ?? '', {
+      actorUserId: user.sub,
+      ip,
+    });
+  }
+
+  // ------------------------------------------------------------- disputes
+
+  @Get('disputes')
+  disputes(
+    @Query('status') status?: string,
+    @Query('shopId') shopId?: string,
+    @Query('reason') reason?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.adminService.listDisputes({
+      status: status ? (status as DisputeStatus) : undefined,
+      shopId: shopId || undefined,
+      reason: reason ? (reason as DisputeReason) : undefined,
+      skip: num(skip),
+      take: num(take),
+    });
+  }
+
+  /** Drives the unread badge on the Disputes tab. */
+  @Get('disputes/open-count')
+  async openDisputeCount() {
+    return { open: await this.adminService.countOpenDisputes() };
+  }
+
+  @Post('disputes/:id/resolve')
+  resolveDispute(
+    @CurrentUser() user: JwtPayload,
+    @Ip() ip: string,
+    @Param('id') id: string,
+    @Body() dto: ResolveDisputeDto,
+  ) {
+    return this.adminService.resolveDispute(id, dto.outcome, dto.note, {
       actorUserId: user.sub,
       ip,
     });

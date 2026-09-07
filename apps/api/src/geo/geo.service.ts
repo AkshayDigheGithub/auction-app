@@ -104,6 +104,33 @@ export class GeoService {
   }
 
   /**
+   * How many shops sit within `radiusKm`, before any category narrowing (AUC-95).
+   *
+   * This exists purely so a zero-reach request can be attributed. "Nobody nearby
+   * at all" and "plenty nearby, none of them sell this" are the same number once
+   * category narrowing has happened, but the first is fixed by widening the
+   * radius and the second by fixing the catalogue mapping — tuning one to cure
+   * the other is exactly the mistake the instrumentation is meant to prevent.
+   *
+   * A COUNT rather than a reuse of findShopsNearby: the rows are never read, and
+   * this runs on every categorised request post.
+   */
+  async countShopsInRadius(
+    latitude: number,
+    longitude: number,
+    radiusKm = 5,
+  ): Promise<number> {
+    const radiusMeters = radiusKm * 1000;
+    const [row] = await this.prisma.db.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(*)::int AS count
+      FROM shops s
+      WHERE s.location IS NOT NULL
+        AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography, ${radiusMeters})
+    `;
+    return row?.count ?? 0;
+  }
+
+  /**
    * Split matched shops into those that can currently take a deal and those that
    * can't, with the reason.
    *

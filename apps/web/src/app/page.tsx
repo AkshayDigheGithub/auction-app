@@ -4,23 +4,22 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-
-const ROLE_HOME: Record<string, string> = {
-  customer: "/request/new",
-  shop_owner: "/nearby",
-  admin: "/admin",
-};
+import { homeForRole } from "@/lib/role-routes";
+import { ResumeClerkSignIn } from "@/components/resume-clerk-sign-in";
 
 export default function Home() {
   const { user, ready } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (ready && user) router.replace(ROLE_HOME[user.role] ?? "/");
+    if (ready && user) router.replace(homeForRole(user.role));
   }, [ready, user, router]);
 
   return (
     <main className="flex flex-1 flex-col justify-center gap-10 px-6 py-12">
+      {/* Landing here mid-sign-in means something went wrong on the way back
+          from Google; finish it rather than asking the user to start over. */}
+      <ResumeClerkSignIn />
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-600 text-2xl">
           🛍️
@@ -33,6 +32,9 @@ export default function Home() {
         </p>
       </div>
 
+      {/* No admin entry point here on purpose. Staff reach the dashboard at
+          /login?role=admin directly; the role and the route still work, they
+          are just not advertised to every customer who opens the app. */}
       <div className="flex flex-col gap-3">
         <Link
           href="/login?role=customer"
@@ -45,12 +47,6 @@ export default function Home() {
           className="rounded-xl border border-orange-600 px-4 py-4 text-center font-medium text-orange-600 transition active:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:active:bg-orange-950/40"
         >
           I&apos;m a Shop Owner
-        </Link>
-        <Link
-          href="/login?role=admin"
-          className="px-4 py-2 text-center text-sm text-neutral-400 underline decoration-dotted underline-offset-2 dark:text-neutral-500"
-        >
-          Admin sign in
         </Link>
       </div>
     </main>

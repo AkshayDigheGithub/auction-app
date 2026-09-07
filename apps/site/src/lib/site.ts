@@ -20,13 +20,33 @@ export const APP_URL =
     : "http://localhost:3000");
 
 /**
- * PLACEHOLDER — the pilot city is still an open decision (spec §10, item 1).
+ * This site's own public origin — the apex, where the marketing site lives.
  *
- * Deliberately not a real city name: a launch deadline must not be what forces
- * a city into public copy. Set this once the decision is actually made; until
- * then the coverage section says we are onboarding without naming a place.
+ * Needed as an absolute URL rather than a relative path because canonical tags,
+ * Open Graph URLs and sitemap entries are all meaningless relative: a canonical
+ * resolving to localhost is worse than no canonical, because it tells a crawler
+ * the real page is a duplicate of something it cannot reach.
+ *
+ * Mirrors APP_URL's shape so the two are read the same way. In development it
+ * points at this site's own dev port (3002), not the app's (3000).
  */
-export const PILOT_CITY: string | null = null;
+export const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://mivikto.store"
+    : "http://localhost:3002");
+
+/**
+ * The pilot city, decided 2026-09-05 — closes spec §10 open decision #1.
+ *
+ * Setting this is not cosmetic: it switches the coverage section from "we are
+ * onboarding shops right now" to "Live in Pune", which is a public claim that
+ * the product works for someone standing in Pune. Keep it truthful. If shop
+ * density in the city ever falls back to the point where a posted request
+ * routinely reaches nobody, this goes back to null rather than the copy being
+ * softened around it.
+ */
+export const PILOT_CITY: string | null = "Pune";
 
 /**
  * Role-specific entry points. The app reads `role` off the query string and,
@@ -40,14 +60,19 @@ export const CUSTOMER_LOGIN_URL = `${APP_URL}/login?role=customer`;
 export const SHOP_LOGIN_URL = `${APP_URL}/login?role=shop_owner`;
 
 /**
- * PLACEHOLDER — replace before this site goes public.
+ * Real, staffed contact details — no longer placeholders.
  *
  * This audience trusts a voice on the phone, not a contact form. A number that
- * nobody answers is worse than no number at all, so this must be a line that is
- * actually staffed.
+ * nobody answers is worse than no number at all, so this must stay a line that
+ * is actually staffed; the same goes for the inbox.
+ *
+ * The email is deliberately on the same domain as the site. An address on a
+ * different TLD would depend on a second registration staying alive, and if it
+ * lapsed the bounce would be silent while the address kept rendering on every
+ * public page.
  */
-export const CONTACT_PHONE = "+91 00000 00000";
-export const CONTACT_EMAIL = "hello@example.com";
+export const CONTACT_PHONE = "+91 9503 928792";
+export const CONTACT_EMAIL = "contact@mivikto.store";
 
 /**
  * Anchors on the single homepage rather than separate routes.
@@ -56,6 +81,14 @@ export const CONTACT_EMAIL = "hello@example.com";
  * category, no live billing. Two landing pages would mean two half-empty pages
  * and double the FAQ and legal surface to keep in sync. Split later if the
  * scroll data actually asks for it.
+ *
+ * These are bare fragments, so every consumer must render them as `/${href}`.
+ * A bare `#how-it-works` is relative to the *current* page, which is correct on
+ * the homepage and dead everywhere else — on /privacy it resolves to
+ * /privacy#how-it-works, silently killing the whole header and footer nav on
+ * two of the three pages. Kept as fragments rather than absolute paths because
+ * they are anchors into the homepage, and writing them as "/#how-it-works" here
+ * would read as three separate routes.
  */
 export const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },

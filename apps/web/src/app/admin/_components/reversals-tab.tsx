@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { formatPaise } from "@/lib/money";
 import { Badge, EmptyState, ErrorBanner, ghostButtonClass, InfoBanner } from "@/components/ui";
-import { Column, FilterBar, Pager, RecordList, Select } from "./shared";
+import { Column, FilterBar, Pager, RecordList, Select, contactLabel } from "./shared";
 
 interface Reversal {
   id: string;
@@ -21,7 +21,12 @@ interface Reversal {
     feeStatus: string;
     shop: { id: string; shopName: string };
     request: { productName: string };
-    customer: { id: string; phoneNumber: string; name: string | null };
+    customer: {
+      id: string;
+      phoneNumber: string | null;
+      email: string | null;
+      name: string | null;
+    };
   };
 }
 
@@ -77,7 +82,7 @@ export function ReversalsTab() {
         <>
           <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.deal.request.productName}</p>
           <p className="text-xs text-neutral-400 dark:text-neutral-500">
-            {r.deal.customer.phoneNumber}
+            {contactLabel(r.deal.customer)}
             {r.reporterTotalReports > 2 && (
               <span className="ml-1 text-amber-600 dark:text-amber-400">· {r.reporterTotalReports} reports</span>
             )}

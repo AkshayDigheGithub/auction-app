@@ -82,16 +82,53 @@ enum ReversalStatus {
   rejected
 }
 
+// --- Conduct disputes (AUC-34) ---
+// Distinct from DealReversal, which is a billing correction: a reversal asks
+// "should this fee stand", a dispute asks "did this shop behave". They are
+// separate because the fee question disappears in shadow mode while the
+// conduct question is exactly what a pilot needs an answer to.
+
+enum DisputeParty {
+  customer
+  shop_owner
+}
+
+// A closed list, not free text. "Three customers said this shop would not
+// honour its bid" is something an admin can act on; three paragraphs are not.
+enum DisputeReason {
+  bid_not_honoured
+  price_higher_in_shop
+  item_not_available
+  shop_unreachable
+  customer_no_show
+  conduct
+  other
+}
+
+enum DisputeStatus {
+  open
+  upheld
+  dismissed
+}
+
+// A user is identified by a phone number, an email, or both — never neither.
+//
+// Phone was the only identifier while OTP was the only way in (AUC-7). Google
+// sign-in (AUC-85) arrives with a verified email and no phone, so both columns
+// are nullable and a CHECK constraint in the migration enforces "at least one".
+// Postgres allows many NULLs in a unique index, so both stay unique.
 model User {
   id          String   @id @default(cuid())
-  phoneNumber String   @unique @map("phone_number")
+  phoneNumber String?  @unique @map("phone_number")
+  email       String?  @unique
   name        String?
   role        Role
   createdAt   DateTime @default(now()) @map("created_at")
 
-  shop     Shop?
-  requests Request[]
-  deals    Deal[]
+  shop            Shop?
+  requests        Request[]
+  deals           Deal[]
+  disputesRaised  Dispute[]
 
   @@map("users")
 }
@@ -111,6 +148,16 @@ model Shop {
   // a shop could register as `jewellery` (0.30%) and take electronics deals cheap.
   secondaryCategories ShopCategory[] @default([]) @map("secondary_categories")
   upiId        String?      @map("upi_id")
+  // How an admin reaches this shop: to verify it exists (spec §4 does that by
+  // phone call) and to work a dispute — `shop_unreachable` and
+  // `customer_no_show` both need someone contactable at the other end.
+  //
+  // Lives here rather than on User because User.phoneNumber is globally
+  // unique, and family-run shops routinely share one number between owners,
+  // or use a number that is already a customer account. Deliberately not
+  // unique, and not OTP-verified for the pilot (AUC-89) — admin verification
+  // is what catches a bad number while SMS stays at zero.
+  contactPhone String?      @map("contact_phone")
   verified     Boolean      @default(false)
   photoUrl     String?      @map("photo_url")
   gstNumber    String?      @map("gst_number")
@@ -127,6 +174,7 @@ model Shop {
 
   bids Bid[]
   deals Deal[]
+  disputes Dispute[]
   pushSubscriptions PushSubscription[]
   walletTransactions WalletTransaction[]
 
@@ -231,6 +279,47 @@ model DealReversal {
 }
 
 /**
+ * A complaint about how a deal was honoured (AUC-34).
+ *
+ * Raised by either side — a customer whose quoted price was not honoured, or a
+ * shop whose customer never arrived. Resolving one does not move money; it
+ * produces the record the Verified badge and any suspension decision rest on,
+ * which spec §4 calls the whole point of tying a real identity to a shop.
+ *
+ * One per person per deal (see @@unique): a complaint is a statement of what
+ * happened, not a thing to file repeatedly until someone acts.
+ */
+model Dispute {
+  id     String @id @default(cuid())
+  dealId String @map("deal_id")
+  deal   Deal   @relation(fields: [dealId], references: [id])
+  /// Denormalised from the deal. Every per-shop query filters on it, and the
+  /// subject of a complaint must not be able to change under it later.
+  shopId String @map("shop_id")
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  raisedByUserId String       @map("raised_by_user_id")
+  raisedBy       User         @relation(fields: [raisedByUserId], references: [id])
+  /// Derived from the raiser's proven role in the deal, never from the request
+  /// body — it decides which reasons are even sayable.
+  raisedByParty  DisputeParty @map("raised_by_party")
+
+  reason  DisputeReason
+  details String?
+
+  status           DisputeStatus @default(open)
+  resolvedByUserId String?       @map("resolved_by_user_id")
+  resolvedAt       DateTime?     @map("resolved_at")
+  resolutionNote   String?       @map("resolution_note")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  @@unique([dealId, raisedByUserId])
+  @@index([status, createdAt])
+  @@index([shopId, status])
+  @@map("disputes")
+}
+
+/**
  * Append-only record of every privileged admin action (AUC-65). Admins can move
  * money now, so "who credited this shop ₹2,000 and why" must have an answer that
  * doesn't depend on someone remembering. Never editable or deletable from the UI.
@@ -294,6 +383,35 @@ model Request {
   matchedShopCount  Int?             @map("matched_shop_count")
   notifiedShopCount Int?             @map("notified_shop_count")
 
+  // Radius instrumentation (AUC-95). Spec §10 leaves "bid radius default —
+  // should this be customer-adjustable?" open; this is the data that answers
+  // it at the day-30 pilot gate instead of intuition.
+  //
+  // The radius is stored rather than assumed constant: the default may move,
+  // and a request matched at 5 km must stay readable as a 5 km request
+  // afterwards.
+  //
+  // The exclusions are split by reason because the two have opposite fixes and
+  // are indistinguishable once summed — suspended shops are a moderation
+  // problem, unfunded ones a billing problem, and neither is fixed by widening
+  // the radius.
+  matchRadiusKm                    Float?   @map("match_radius_km")
+  excludedSuspendedCount           Int?     @map("excluded_suspended_count")
+  excludedInsufficientBalanceCount Int?     @map("excluded_insufficient_balance_count")
+
+  // Shops in radius BEFORE category narrowing. matchedShopCount is after it, so
+  // the pair is what separates "nowhere near enough shops" (widen the radius)
+  // from "plenty of shops, none mapped to this product" (fix the catalogue).
+  // Collapsed into one number those two are indistinguishable and have opposite
+  // fixes.
+  inRadiusShopCount Int? @map("in_radius_shop_count")
+
+  // Whether balance gating was actually enforced for this match. Without it a
+  // zero in excludedInsufficientBalanceCount is ambiguous: either every nearby
+  // shop was funded, or shadow billing meant nobody was ever gated. Those read
+  // identically in a report and mean opposite things about live readiness.
+  balanceEnforced Boolean? @map("balance_enforced")
+
   bids Bid[]
   deal Deal?
 
@@ -351,6 +469,7 @@ model Deal {
   feeStatus      DealFeeStatus @default(shadow) @map("fee_status")
 
   reversal DealReversal?
+  disputes Dispute[]
 
   @@index([shopId, createdAt])
   @@index([feeStatus])

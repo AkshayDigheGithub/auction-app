@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Nearby Bids — Local Shop Auctions",
-    short_name: "Nearby Bids",
+    name: "mivikto.store — Local Shop Auctions",
+    short_name: "mivikto.store",
     description: "Post what you want to buy, let nearby shops bid on it.",
     start_url: "/",
     display: "standalone",

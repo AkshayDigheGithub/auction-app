@@ -12,14 +12,14 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
           <Logo />
-          <span className="font-display text-lg font-bold text-ink-900">Nearby Bids</span>
+          <span className="font-display text-lg font-bold text-ink-900">mivikto.store</span>
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
-              href={l.href}
+              href={`/${l.href}`}
               className="text-sm font-medium text-ink-600 transition hover:text-ink-900"
             >
               {l.label}
@@ -62,7 +62,7 @@ export function SiteHeader() {
             {NAV_LINKS.map((l) => (
               <Link
                 key={l.href}
-                href={l.href}
+                href={`/${l.href}`}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-2 py-2.5 text-base font-medium text-ink-800 transition hover:bg-ink-100"
               >

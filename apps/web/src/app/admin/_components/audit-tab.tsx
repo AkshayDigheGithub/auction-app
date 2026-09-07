@@ -29,6 +29,8 @@ const ACTIONS = [
   "shop.categories.update",
   "reversal.approve",
   "reversal.reject",
+  "dispute.uphold",
+  "dispute.dismiss",
   "product_category.create",
   "product_category.update",
   "product_category.deactivate",

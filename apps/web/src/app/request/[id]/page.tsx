@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useRequireRole } from "@/lib/use-require-role";
@@ -31,11 +31,27 @@ export default function RequestDetailPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [locking, setLocking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A request id that does not resolve is a genuine 404, but nothing here is
+   * server-rendered, so Next's router never sees it — the old `.catch(() => {})`
+   * swallowed the failure and left the page on its loading spinner forever.
+   * The API returns 404 both for an id that does not exist and for one that
+   * belongs to somebody else, so this covers a stale link and a shared link
+   * alike.
+   */
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     if (!ready || !user || !id) return;
 
-    api.get<RequestDetail>(`/requests/${id}`).then(setRequest).catch(() => {});
+    api
+      .get<RequestDetail>(`/requests/${id}`)
+      .then(setRequest)
+      .catch((err) => {
+        if (err instanceof ApiError && (err.status === 404 || err.status === 403)) setMissing(true);
+      });
+    // Bids are secondary: if only this call fails the page is still usable, so
+    // it must not be what decides the request is missing.
     api.get<Bid[]>(`/requests/${id}/bids`).then(setBids).catch(() => {});
 
     const socket = getSocket();
@@ -66,6 +82,9 @@ export default function RequestDetailPage() {
     }
   }
 
+  // Rendering `notFound()` hands off to app/not-found.tsx, which knows how to
+  // route each role back somewhere useful.
+  if (missing) notFound();
   if (!ready || !user || !request) return <LoadingScreen />;
 
   const lowestPrice = bids.length ? Math.min(...bids.map((b) => Number(b.price))) : null;

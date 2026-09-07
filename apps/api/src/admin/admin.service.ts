@@ -10,6 +10,10 @@ import { AuditService } from '../audit/audit.service';
 import { DealsService } from '../deals/deals.service';
 import { CatalogService } from '../catalog/catalog.service';
 import {
+  DisputesService,
+  type ListDisputesOpts,
+} from '../disputes/disputes.service';
+import {
   PricingService,
   RATE_SANITY_THRESHOLD_BPS,
   SHOP_CATEGORIES,
@@ -35,6 +39,31 @@ function page(opts: PageOpts) {
   };
 }
 
+/**
+ * Distribution summary for the radius reach report (AUC-95).
+ *
+ * A mean alone would hide the case the pilot gate actually cares about: a
+ * handful of dense areas pulling the average up while most requests reach
+ * almost nobody. The percentiles are what make that visible.
+ */
+function summarise(values: number[]) {
+  if (!values.length) {
+    return { n: 0, min: null, p50: null, p90: null, max: null, mean: null };
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+  const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+  return {
+    n: sorted.length,
+    min: sorted[0],
+    p50: at(0.5),
+    p90: at(0.9),
+    max: sorted[sorted.length - 1],
+    mean: Math.round(mean * 100) / 100,
+  };
+}
+
 function dateRange(from?: string, to?: string) {
   if (!from && !to) return undefined;
   return {
@@ -53,6 +82,7 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly deals: DealsService,
     private readonly catalog: CatalogService,
+    private readonly disputes: DisputesService,
   ) {}
 
   // ---------------------------------------------------------------- listings
@@ -91,7 +121,9 @@ export class AdminService {
         include: {
           bids: { select: { id: true } },
           deal: { select: { id: true, feeAmountPaise: true, feeStatus: true } },
-          customer: { select: { id: true, phoneNumber: true, name: true } },
+          customer: {
+            select: { id: true, phoneNumber: true, email: true, name: true },
+          },
           productCategory: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -100,6 +132,132 @@ export class AdminService {
       this.prisma.db.request.count({ where }),
     ]);
     return { rows, total, ...page(opts) };
+  }
+
+  /**
+   * Radius reach report (AUC-95) — the evidence for the day-30 call on whether
+   * the 5 km bid radius stays fixed, auto-expands, or becomes customer-adjustable.
+   *
+   * Two deliberate choices:
+   *
+   * Requests posted before the instrumentation shipped are counted separately
+   * and excluded from every statistic. Their radius is unknown, not 5, and
+   * folding an assumption into the sample would corrupt the one number the
+   * pilot gate turns on.
+   *
+   * Bids, first-bid latency and lock are derived from the bid and deal rows
+   * rather than denormalised onto the request. They keep changing after the
+   * request is posted, so a copy would be a stale copy; the match counts beside
+   * them are frozen precisely because they describe a moment.
+   */
+  async radiusReachReport(opts: { from?: string; to?: string } = {}) {
+    const range = dateRange(opts.from, opts.to);
+    const where = {
+      ...(range ? { createdAt: range } : {}),
+    };
+
+    const rows = await this.prisma.db.request.findMany({
+      where,
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        productCategoryId: true,
+        matchRadiusKm: true,
+        inRadiusShopCount: true,
+        matchedShopCount: true,
+        notifiedShopCount: true,
+        excludedSuspendedCount: true,
+        excludedInsufficientBalanceCount: true,
+        balanceEnforced: true,
+        bids: { select: { createdAt: true } },
+        deal: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const instrumented = rows.filter((r) => r.matchRadiusKm != null);
+
+    // Grouped by the radius actually used, so the report stays honest if the
+    // default ever moves or auto-expansion (AUC-96) starts varying it per
+    // request.
+    const byRadius = [...new Set(instrumented.map((r) => r.matchRadiusKm!))]
+      .sort((a, b) => a - b)
+      .map((radiusKm) => {
+        const at = instrumented.filter((r) => r.matchRadiusKm === radiusKm);
+        const bidCounts = at.map((r) => r.bids.length);
+        const firstBidSeconds = at
+          .map((r) => {
+            if (!r.bids.length) return null;
+            const first = Math.min(...r.bids.map((b) => b.createdAt.getTime()));
+            return (first - r.createdAt.getTime()) / 1000;
+          })
+          .filter((s): s is number => s != null);
+
+        return {
+          radiusKm,
+          requests: at.length,
+          matchedShopsPerRequest: summarise(
+            at.map((r) => r.matchedShopCount ?? 0),
+          ),
+          notifiedShopsPerRequest: summarise(
+            at.map((r) => r.notifiedShopCount ?? 0),
+          ),
+          bidsPerRequest: summarise(bidCounts),
+          requestsWithNoBid: bidCounts.filter((n) => n === 0).length,
+          secondsToFirstBid: summarise(firstBidSeconds),
+          reachedLock: at.filter((r) => r.deal != null).length,
+        };
+      });
+
+    // The whole point of the split: these three have opposite fixes. Widening
+    // the radius does nothing for a catalogue-mapping gap, and topping up
+    // wallets does nothing for an empty map.
+    const zeroReach = instrumented.filter(
+      (r) => (r.notifiedShopCount ?? 0) === 0,
+    );
+    const attributed = {
+      total: zeroReach.length,
+      noShopInRadius: zeroReach.filter((r) => (r.inRadiusShopCount ?? 0) === 0)
+        .length,
+      noShopServesCategory: zeroReach.filter(
+        (r) =>
+          (r.inRadiusShopCount ?? 0) > 0 && (r.matchedShopCount ?? 0) === 0,
+      ).length,
+      allNearbySuspended: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) === 0,
+      ).length,
+      allNearbyUnfunded: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) === 0,
+      ).length,
+      mixedExclusions: zeroReach.filter(
+        (r) =>
+          (r.matchedShopCount ?? 0) > 0 &&
+          (r.excludedSuspendedCount ?? 0) > 0 &&
+          (r.excludedInsufficientBalanceCount ?? 0) > 0,
+      ).length,
+    };
+
+    return {
+      window: { from: opts.from ?? null, to: opts.to ?? null },
+      instrumentedRequests: instrumented.length,
+      // Reported, not hidden: if this dwarfs the instrumented count the report
+      // is not yet decision-grade and the gate should not be called on it.
+      uninstrumentedRequests: rows.length - instrumented.length,
+      // Balance gating is only enforced in live billing, so in shadow mode an
+      // unfunded-shop count of zero means "never checked", not "all funded".
+      balanceEnforcedRequests: instrumented.filter(
+        (r) => r.balanceEnforced === true,
+      ).length,
+      byRadius,
+      zeroReach: attributed,
+    };
   }
 
   async listDeals(
@@ -151,7 +309,13 @@ export class AdminService {
             OR: [
               { shopName: { contains: opts.q, mode: 'insensitive' as const } },
               { address: { contains: opts.q, mode: 'insensitive' as const } },
+              { contactPhone: { contains: opts.q } },
               { owner: { phoneNumber: { contains: opts.q } } },
+              {
+                owner: {
+                  email: { contains: opts.q, mode: 'insensitive' as const },
+                },
+              },
             ],
           }
         : {}),
@@ -161,7 +325,9 @@ export class AdminService {
       this.prisma.db.shop.findMany({
         where,
         include: {
-          owner: { select: { id: true, phoneNumber: true, name: true } },
+          owner: {
+            select: { id: true, phoneNumber: true, email: true, name: true },
+          },
           _count: { select: { bids: true, deals: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -198,6 +364,67 @@ export class AdminService {
     };
   }
 
+  /**
+   * Everyone with an account, customers and shop owners alike.
+   *
+   * Every other listing is keyed on a shop, a request or a deal, which leaves
+   * no way to answer "who is this phone number?" — the question support gets
+   * first whenever someone calls in. A shop owner with no `shop` is the other
+   * thing worth seeing here: they signed up and never finished onboarding.
+   */
+  async listUsers(
+    opts: PageOpts & {
+      q?: string;
+      role?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ) {
+    const where = {
+      ...(opts.role ? { role: opts.role as never } : {}),
+      ...(opts.q
+        ? {
+            OR: [
+              { phoneNumber: { contains: opts.q } },
+              { email: { contains: opts.q, mode: 'insensitive' as const } },
+              { name: { contains: opts.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+      ...(dateRange(opts.from, opts.to)
+        ? { createdAt: dateRange(opts.from, opts.to) }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.db.user.findMany({
+        where,
+        select: {
+          id: true,
+          phoneNumber: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          shop: {
+            select: {
+              id: true,
+              shopName: true,
+              verified: true,
+              suspended: true,
+            },
+          },
+          _count: { select: { requests: true, deals: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...page(opts),
+      }),
+      this.prisma.db.user.count({ where }),
+    ]);
+
+    return { rows, total, ...page(opts) };
+  }
+
   // ------------------------------------------------------------- shop detail
 
   /** Everything about one shop on one page (AUC-67). */
@@ -206,14 +433,20 @@ export class AdminService {
       where: { id: shopId },
       include: {
         owner: {
-          select: { id: true, phoneNumber: true, name: true, createdAt: true },
+          select: {
+            id: true,
+            phoneNumber: true,
+            email: true,
+            name: true,
+            createdAt: true,
+          },
         },
         _count: { select: { bids: true, deals: true } },
       },
     });
     if (!shop) throw new NotFoundException('Shop not found');
 
-    const [ledger, deals, confirmedCount, rule] = await Promise.all([
+    const [ledger, deals, confirmedCount, rule, disputes] = await Promise.all([
       this.wallet.ledger(shopId, { take: 20 }),
       this.prisma.db.deal.findMany({
         where: { shopId },
@@ -226,6 +459,9 @@ export class AdminService {
       }),
       this.prisma.db.deal.count({ where: { shopId, qrStatus: 'confirmed' } }),
       this.pricing.getRule(shop.category).catch(() => null),
+      // Complaint history belongs on this page: verifying or suspending a shop
+      // is the decision these disputes exist to inform (AUC-34).
+      this.disputes.shopSummary(shopId),
     ]);
 
     const feesCharged = await this.prisma.db.deal.aggregate({
@@ -249,6 +485,7 @@ export class AdminService {
         feesChargedPaise: feesCharged._sum.feeAmountPaise ?? 0,
         chargedDeals: feesCharged._count._all,
       },
+      disputes,
       recentLedger: ledger.rows,
       recentDeals: deals,
     };
@@ -627,7 +864,14 @@ export class AdminService {
             include: {
               shop: { select: { id: true, shopName: true } },
               request: { select: { productName: true } },
-              customer: { select: { id: true, phoneNumber: true, name: true } },
+              customer: {
+                select: {
+                  id: true,
+                  phoneNumber: true,
+                  email: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -686,6 +930,51 @@ export class AdminService {
       targetType: 'reversal',
       targetId: reversalId,
       after: { note, dealId: result.dealId },
+      ip: ctx.ip,
+    });
+    return result;
+  }
+
+  // --------------------------------------------------------------- disputes
+
+  listDisputes(opts: ListDisputesOpts = {}) {
+    return this.disputes.list(opts);
+  }
+
+  countOpenDisputes() {
+    return this.disputes.countOpen();
+  }
+
+  /**
+   * Uphold or dismiss a complaint (AUC-34).
+   *
+   * Audited like every other privileged action: an upheld dispute is what a
+   * later suspension gets justified by, so who decided it and why has to
+   * survive longer than anyone's memory.
+   */
+  async resolveDispute(
+    disputeId: string,
+    outcome: 'upheld' | 'dismissed',
+    note: string,
+    ctx: ActorContext,
+  ) {
+    const result = await this.disputes.resolve({
+      disputeId,
+      outcome,
+      note,
+      resolvedByUserId: ctx.actorUserId,
+    });
+    await this.audit.record({
+      actorUserId: ctx.actorUserId,
+      action: outcome === 'upheld' ? 'dispute.uphold' : 'dispute.dismiss',
+      targetType: 'dispute',
+      targetId: disputeId,
+      after: {
+        outcome,
+        note,
+        dealId: result.dealId,
+        shopId: result.shopId,
+      },
       ip: ctx.ip,
     });
     return result;

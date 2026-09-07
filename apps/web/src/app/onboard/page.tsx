@@ -17,6 +17,7 @@ interface Shop {
   latitude: number;
   longitude: number;
   upiId: string | null;
+  contactPhone: string | null;
   verified: boolean;
   category: string;
   secondaryCategories: string[];
@@ -40,6 +41,7 @@ export default function OnboardPage() {
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [upiId, setUpiId] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [verified, setVerified] = useState(false);
   const [category, setCategory] = useState("mobile_electronics");
   const [existingCategory, setExistingCategory] = useState<string | null>(null);
@@ -64,12 +66,18 @@ export default function OnboardPage() {
         setAddress(shop.address);
         setCoords({ latitude: shop.latitude, longitude: shop.longitude });
         setUpiId(shop.upiId ?? "");
+        setContactPhone(shop.contactPhone ?? user.phoneNumber ?? "");
         setVerified(shop.verified);
         setCategory(shop.category);
         setExistingCategory(shop.category);
         setSecondaryCategories(shop.secondaryCategories ?? []);
       })
-      .catch(() => {});
+      .catch(() => {
+        // No shop profile yet. An owner who signed up under the OTP flow
+        // already has a verified number on their account — offer it so this is
+        // a confirm rather than a retype (AUC-89).
+        setContactPhone(user.phoneNumber ?? "");
+      });
   }, [ready, user]);
 
   // Places Autocomplete on the address field + a draggable pin to confirm/adjust it (AUC-15).
@@ -174,6 +182,7 @@ export default function OnboardPage() {
         // lists as disjoint.
         secondaryCategories: secondaryCategories.filter((c) => c !== category),
         upiId: upiId || undefined,
+        contactPhone,
       });
       router.push("/nearby");
     } catch (err) {
@@ -308,6 +317,22 @@ export default function OnboardPage() {
             </p>
           )}
         </div>
+
+        <label className={labelClass}>
+          Contact phone number
+          <input
+            type="tel"
+            required
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            placeholder="+919876543210"
+            className={inputClass}
+          />
+          <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
+            How we reach you about a deal or a complaint. Customers never see
+            it — they get your shop name and address.
+          </span>
+        </label>
 
         <label className={labelClass}>
           UPI ID (for commission settlement, optional for now)

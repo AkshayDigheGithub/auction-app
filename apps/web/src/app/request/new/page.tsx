@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { useRequireRole } from "@/lib/use-require-role";
 import { GMap, GMapMarker, GOOGLE_MAPS_ENABLED, loadGoogleMaps } from "@/lib/google-maps";
-import { ErrorBanner, ghostButtonClass, inputClass, labelClass, LoadingScreen, primaryButtonClass, Spinner } from "@/components/ui";
+import { ErrorBanner, ghostButtonClass, InfoBanner, inputClass, labelClass, LoadingScreen, primaryButtonClass, Spinner } from "@/components/ui";
 
 // Matches the API's mock geocoder fallback (apps/api/src/geo/providers/mock-geocoding.provider.ts).
 const DEFAULT_CENTER = { lat: 12.9716, lng: 77.5946 };
@@ -22,6 +22,30 @@ interface ProductCategory {
   children: { id: string; name: string; slug: string }[];
 }
 
+interface NearbyShopSignal {
+  count: number;
+  radiusKm: number;
+  categoryName: string | null;
+}
+
+// AUC-93: an anonymised "someone will actually bid" signal — count only, never
+// identity. Shop names/addresses stay hidden until deal lock, which is the only
+// thing that forces request -> bid -> lock (the platform's only revenue point),
+// so this must never grow into a list, a map, or a second call to action.
+function supplySignalText(signal: NearbyShopSignal | null): string | null {
+  if (!signal || signal.count <= 0) return null; // zero kills the funnel — say nothing
+  const plural = signal.count !== 1;
+  const shopWord = plural ? "shops" : "shop";
+  if (signal.categoryName) {
+    const verb = plural ? "deal" : "deals";
+    return `${signal.count} ${shopWord} near you ${verb} in ${signal.categoryName}`;
+  }
+  // No category picked yet — the count spans all shops in radius, so don't
+  // imply it's specific to whatever the customer is about to post.
+  const verb = plural ? "are" : "is";
+  return `${signal.count} ${shopWord} near you ${verb} already on the platform`;
+}
+
 export default function NewRequestPage() {
   const { ready, user } = useRequireRole("customer");
   const router = useRouter();
@@ -35,6 +59,7 @@ export default function NewRequestPage() {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [nearbySignal, setNearbySignal] = useState<(NearbyShopSignal & { key: string }) | null>(null);
 
   const areaInputRef = useRef<HTMLInputElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -109,6 +134,47 @@ export default function NewRequestPage() {
       .then(setCategories)
       .catch(() => setCategories([]));
   }, [ready, user]);
+
+  // Identifies what a given count is an answer *to*. Comparing it on render is
+  // what keeps a stale count off the screen without clearing state inside the
+  // effect, which would cost an extra render pass on every pin drag.
+  const signalKey = coords ? `${coords.latitude},${coords.longitude},${productCategoryId}` : null;
+  const freshSignal = nearbySignal?.key === signalKey ? nearbySignal : null;
+
+  // Supply-density signal (AUC-93): fetch only once we have coordinates to
+  // count against, debounced so dragging the map pin doesn't fire a request
+  // per pixel. `cancelled` guards against a slow earlier response landing
+  // after a newer one and clobbering it. A failure here is non-fatal and
+  // silent, same as the product-category fetch above — this is decoration,
+  // not something the form depends on to function.
+  useEffect(() => {
+    if (!signalKey || !coords) return; // nothing to count against
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({
+        latitude: String(coords.latitude),
+        longitude: String(coords.longitude),
+      });
+      if (productCategoryId) params.set("productCategoryId", productCategoryId);
+      api
+        .get<NearbyShopSignal>(`/requests/nearby-shop-count?${params.toString()}`)
+        // Stamped with the pin/category it answers for, so a count for the
+        // previous location can't linger on screen after the pin moves. A
+        // number that describes somewhere else is exactly the overpromise this
+        // signal exists to avoid.
+        .then((signal) => {
+          if (!cancelled) setNearbySignal({ ...signal, key: signalKey });
+        })
+        .catch(() => {
+          if (!cancelled) setNearbySignal(null);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [signalKey, coords, productCategoryId]);
 
   function useMyLocation() {
     setLocating(true);
@@ -244,6 +310,12 @@ export default function NewRequestPage() {
             </p>
           </div>
         )}
+
+        {/* Reassurance, not a CTA: shows someone will actually bid before the
+            customer commits. Renders nothing at zero/loading/error — see
+            supplySignalText. Never a shop list — identity stays hidden until
+            deal lock. */}
+        {supplySignalText(freshSignal) && <InfoBanner tone="green">{supplySignalText(freshSignal)}</InfoBanner>}
 
         {error && <ErrorBanner>{error}</ErrorBanner>}
         <button type="submit" disabled={loading} className={`${primaryButtonClass} flex items-center justify-center gap-2`}>

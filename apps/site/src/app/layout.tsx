@@ -5,6 +5,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Analytics } from "@vercel/analytics/next";
+import { SITE_URL } from "@/lib/site";
 
 // Display face for headlines — it has enough character to not look like a
 // template, while staying legible at small sizes for the odd sub-heading.
@@ -23,16 +24,26 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for canonical and Open Graph URLs. Without it Next resolves
+  // them against localhost and warns at build time — and a canonical pointing
+  // at localhost is worse than none, since it names an unreachable page as the
+  // original this one duplicates.
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Nearby Bids — Let local shops compete for your order",
-    template: "%s · Nearby Bids",
+    default: "mivikto.store — Let local shops compete for your order",
+    template: "%s · mivikto.store",
   },
+  // No timing claim in either description. "Collect it the same day" used to
+  // sit here, which promised a bid speed the FAQ deliberately refuses to
+  // promise ("we would rather tell you that than promise you bids in five
+  // minutes") — and this is the copy that shows in search results and link
+  // previews, so it was the most-read sentence on the site contradicting it.
   description:
-    "Post what you want to buy. Shops near you send their best price. You pick one and collect it the same day — no delivery wait, no haggling shop to shop.",
+    "Post what you want to buy. Shops near you send their best price. You pick one and collect it in person — no delivery wait, no haggling shop to shop.",
   openGraph: {
-    title: "Nearby Bids — Let local shops compete for your order",
+    title: "mivikto.store — Let local shops compete for your order",
     description:
-      "Post what you want to buy. Shops near you send their best price. Pick one and collect it the same day.",
+      "Post what you want to buy. Shops near you send their best price. Pick one and collect it in person.",
     type: "website",
   },
 };

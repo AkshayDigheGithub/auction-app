@@ -6,7 +6,10 @@ export type Role = "customer" | "shop_owner" | "admin";
 
 export interface AuthUser {
   sub: string;
-  phoneNumber: string;
+  /** Null for a Clerk sign-in that has given no phone number yet (AUC-85). */
+  phoneNumber: string | null;
+  /** Null for a phone/OTP sign-in. */
+  email: string | null;
   role: Role;
 }
 

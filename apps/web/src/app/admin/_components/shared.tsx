@@ -4,6 +4,24 @@ import { useState, type ReactNode } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { ghostButtonClass, inputClass } from "@/components/ui";
 
+/**
+ * The identifier an admin actually acts on.
+ *
+ * A user has a phone number, an email, or both (AUC-85): phone for the OTP
+ * flow, email for Google sign-in. Phone wins when both are present — for a
+ * shop owner it is the number an admin calls to verify the shop or work a
+ * dispute, which email is a poor substitute for.
+ *
+ * Never returns an empty string: a row an admin cannot identify is a row they
+ * cannot act on.
+ */
+export function contactLabel(user: {
+  phoneNumber?: string | null;
+  email?: string | null;
+}): string {
+  return user.phoneNumber || user.email || "—";
+}
+
 /** A labelled figure. The workhorse of the dashboard. */
 export function Stat({
   label,
