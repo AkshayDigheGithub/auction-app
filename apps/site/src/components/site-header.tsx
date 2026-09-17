@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { APP_URL, NAV_LINKS } from "@/lib/site";
+import { APP_URL, BLOG_PATH, NAV_LINKS } from "@/lib/site";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
@@ -25,6 +25,14 @@ export function SiteHeader() {
               {l.label}
             </Link>
           ))}
+          {/* Last in the row: it is the only link that leaves the homepage, so
+              it reads as a departure rather than another anchor. */}
+          <Link
+            href={BLOG_PATH}
+            className="text-sm font-medium text-ink-600 transition hover:text-ink-900"
+          >
+            Guides
+          </Link>
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -69,6 +77,13 @@ export function SiteHeader() {
                 {l.label}
               </Link>
             ))}
+            <Link
+              href={BLOG_PATH}
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-2 py-2.5 text-base font-medium text-ink-800 transition hover:bg-ink-100"
+            >
+              Guides
+            </Link>
           </nav>
           <a
             href={APP_URL}
