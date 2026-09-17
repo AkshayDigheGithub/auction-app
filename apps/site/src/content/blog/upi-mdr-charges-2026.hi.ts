@@ -30,6 +30,7 @@ export const upiMdr2026Hi: Translation = {
     "मर्चेंट डिस्काउंट रेट",
     "UPI नए नियम 2026",
   ],
+  ogHighlight: { value: "0.4%", label: "₹2,000 से ऊपर के UPI पेमेंट पर" },
 
   intro: [
     {
