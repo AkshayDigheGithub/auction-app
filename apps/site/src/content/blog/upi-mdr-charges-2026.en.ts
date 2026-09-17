@@ -40,7 +40,7 @@ export const upiMdr2026En: Translation = {
     },
     {
       kind: "p",
-      text: "On 15 September 2026, NPCI issued a circular and the Department of Financial Services published a detailed FAQ alongside it. Together they introduce a **Merchant Discount Rate of 0.4% on person-to-merchant UPI payments above ₹2,000**, capped at ₹300 a transaction, from **15 October 2026**.",
+      text: "On 15 September 2026, NPCI issued a circular and the Department of Financial Services published a [detailed FAQ](https://financialservices.gov.in/sites/default/files/2026-09/FAQs---Merchant-Discount-Rate--MDR--on-Select-UPI--P2M--Transactions_0.pdf) alongside it. Together they introduce a **Merchant Discount Rate of 0.4% on person-to-merchant UPI payments above ₹2,000**, capped at ₹300 a transaction, from **15 October 2026**.",
     },
     {
       kind: "p",
@@ -116,7 +116,7 @@ export const upiMdr2026En: Translation = {
             ["₹50,000", "0.40%", "**₹200**"],
             ["₹75,000 and above", "Fixed ₹300", "**₹300**"],
           ],
-          note: "Source: DFS FAQ on MDR on Select UPI (P2M) Transactions, 15 September 2026, Q35.",
+          note: "Source: [DFS FAQ on MDR on Select UPI (P2M) Transactions](https://financialservices.gov.in/sites/default/files/2026-09/FAQs---Merchant-Discount-Rate--MDR--on-Select-UPI--P2M--Transactions_0.pdf), 15 September 2026, Q35.",
         },
         {
           kind: "p",
@@ -363,6 +363,33 @@ export const upiMdr2026En: Translation = {
     },
   ],
 
+  sources: [
+    {
+      label: "Merchant Discount Rate (MDR) on Select UPI (P2M) Transactions — FAQ",
+      url: "https://financialservices.gov.in/sites/default/files/2026-09/FAQs---Merchant-Discount-Rate--MDR--on-Select-UPI--P2M--Transactions_0.pdf",
+      note:
+        "Department of Financial Services, Ministry of Finance, 15 September 2026. Every rate, threshold and worked example on this page comes from this document.",
+    },
+    {
+      label: "Department of Financial Services",
+      url: "https://financialservices.gov.in",
+      note: "Where that FAQ is published, and where a revision to it would appear first.",
+    },
+    {
+      label: "NPCI",
+      url: "https://www.npci.org.in",
+      note:
+        "Issued the circular of 15 September 2026. Rates, category caps and the P2PM threshold are set here and can be changed here.",
+    },
+    {
+      label: "Press Information Bureau",
+      url: "https://www.pib.gov.in",
+      note:
+        "Official announcements. The FAQ's own advice is to check here, the RBI or NPCI before believing a forwarded message about UPI charges.",
+    },
+  ],
+
+  // The attribution lives in `sources` above, so this carries only the caveat.
   disclaimer:
-    "Based on the Department of Financial Services FAQ **Merchant Discount Rate (MDR) on Select UPI (P2M) Transactions**, dated 15 September 2026, and the NPCI circular of the same date. Operational parameters, fee distribution and category caps are set by the UPI and Services Steering Committee headed by NPCI, and can be revised — check the current official notification before you rely on these figures. This is general information, not tax or legal advice. For your own GST position or your merchant classification, speak to your CA and your acquiring bank.",
+    "Operational parameters, fee distribution and category caps are set by the UPI and Services Steering Committee headed by NPCI, and can be revised — check the current official notification before you rely on these figures. This is general information, not tax or legal advice. For your own GST position or your merchant classification, speak to your CA and your acquiring bank.",
 };

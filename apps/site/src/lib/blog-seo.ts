@@ -98,6 +98,14 @@ export function postJsonLd(post: Post, locale: Locale): object {
         author: publisher,
         publisher,
         keywords: t.keywords.join(", "),
+        // The documents the post is drawn from, declared as data. A page that
+        // makes claims about what a business will be charged should say where
+        // it got them in a form a machine can follow, not only in prose.
+        citation: t.sources.map((source) => ({
+          "@type": "CreativeWork",
+          name: source.label,
+          url: source.url,
+        })),
         articleSection: locale === "hi" ? "दुकानदारों के लिए गाइड" : "Guides for shop owners",
       },
       {

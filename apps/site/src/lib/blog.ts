@@ -14,8 +14,25 @@ import type { Locale } from "./i18n";
  * end up looking like a worse version of the English one.
  */
 
-/** A cell, paragraph or list item. Supports `**bold**` and nothing else. */
+/** A cell, paragraph or list item. Supports `**bold**` and `[text](url)`. */
 export type RichText = string;
+
+/**
+ * A document this post takes its facts from.
+ *
+ * Separate from the prose because a citation has to survive being skimmed,
+ * copied into a WhatsApp message, and checked by someone who does not believe
+ * us. A post about what a shop is going to be charged is worth nothing if the
+ * reader cannot get to the government document in one tap and see for
+ * themselves; "according to the FAQ" buried in a paragraph is not that.
+ */
+export interface Source {
+  /** The document's own title, not a description of it. */
+  label: string;
+  url: string;
+  /** Who published it and when — the part that makes it checkable. */
+  note: string;
+}
 
 export type Block =
   | { kind: "p"; text: RichText }
@@ -66,7 +83,9 @@ export interface Translation {
   /** Blocks before the first section heading. */
   intro: Block[];
   sections: Section[];
-  /** Sources and the "this is not tax advice" line, in the footer card. */
+  /** The documents every figure on this page comes from. */
+  sources: Source[];
+  /** The "this is not tax advice" line, under the sources.  */
   disclaimer: RichText;
 }
 

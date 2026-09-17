@@ -25,27 +25,52 @@ import { CUSTOMER_LOGIN_URL, SHOP_LOGIN_URL } from "@/lib/site";
 /* ---------------------------------------------------------------- inline --- */
 
 /**
- * The only inline markup the content model allows is `**bold**`.
+ * The inline markup the content model allows: `**bold**` and `[text](url)`.
  *
  * Deliberately not a Markdown parser. Content is authored by us, in TypeScript,
  * and every additional inline feature is another way for a translation to
- * render differently from its original. Bold earns its place because these
- * posts turn on specific numbers, and a number that survives a skim is the
- * difference between the page working and not.
+ * render differently from its original. These two earn their place: bold
+ * because these posts turn on specific numbers and a number has to survive a
+ * skim, links because a claim about what someone will be charged should be one
+ * tap from the document it came from.
  */
+const INLINE_TOKEN = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g;
+const LINK = /^\[([^\]]+)\]\(([^)\s]+)\)$/;
+
 function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return (
     <>
-      {parts.map((part, i) =>
-        part.startsWith("**") && part.endsWith("**") ? (
-          <strong key={i} className="font-semibold text-ink-900">
-            {part.slice(2, -2)}
-          </strong>
-        ) : (
-          part
-        ),
-      )}
+      {text.split(INLINE_TOKEN).map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return (
+            <strong key={i} className="font-semibold text-ink-900">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        const link = part.match(LINK);
+        if (!link) return part;
+
+        const [, label, href] = link;
+        // Everything we cite is an external document, and http(s) is the only
+        // scheme worth rendering as a link — anything else is an authoring
+        // mistake, and showing the label as plain text makes it visible in
+        // review rather than shipping a dead or odd link.
+        if (!/^https?:\/\//.test(href)) return label;
+
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-brand-700 underline decoration-brand-200 underline-offset-2 transition hover:decoration-brand-600"
+          >
+            {label}
+          </a>
+        );
+      })}
     </>
   );
 }
@@ -446,7 +471,29 @@ export function PostArticle({ post, locale }: { post: Post; locale: Locale }) {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">
               {ui.sourcesTitle}
             </p>
-            <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-500">
+
+            <ol className="mt-3.5 flex flex-col gap-3">
+              {t.sources.map((source, i) => (
+                <li key={i} className="flex gap-3 text-[0.9375rem] leading-relaxed">
+                  <span aria-hidden className="w-4 shrink-0 text-right tabular-nums text-ink-400">
+                    {i + 1}
+                  </span>
+                  <span>
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand-700 underline decoration-brand-200 underline-offset-2 transition hover:decoration-brand-600"
+                    >
+                      {source.label}
+                    </a>
+                    <span className="text-ink-500"> — {source.note}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <p className="mt-4 border-t border-ink-200 pt-4 text-[0.9375rem] leading-relaxed text-ink-500">
               <Inline text={t.disclaimer} />
             </p>
           </aside>
