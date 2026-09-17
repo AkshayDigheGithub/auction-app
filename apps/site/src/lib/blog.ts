@@ -80,6 +80,14 @@ export interface Translation {
   standfirst: string;
   /** Ranked terms this page is actually trying to answer, for `keywords`. */
   keywords: string[];
+  /**
+   * The one number worth reading on the link-preview card, if the post has one.
+   *
+   * Optional because not every post turns on a figure. When it does, a share
+   * into a WhatsApp group is competing with everything else in that thread, and
+   * "0.4%" does more work at thumbnail size than any headline.
+   */
+  ogHighlight?: { value: string; label: string };
   /** Blocks before the first section heading. */
   intro: Block[];
   sections: Section[];

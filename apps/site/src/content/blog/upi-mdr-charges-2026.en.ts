@@ -32,6 +32,7 @@ export const upiMdr2026En: Translation = {
     "P2PM zero MDR",
     "merchant discount rate India",
   ],
+  ogHighlight: { value: "0.4%", label: "on UPI payments above ₹2,000" },
 
   intro: [
     {
