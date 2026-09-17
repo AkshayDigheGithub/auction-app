@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_URL, CONTACT_EMAIL, CONTACT_PHONE, NAV_LINKS } from "@/lib/site";
+import { APP_URL, BLOG_PATH, CONTACT_EMAIL, CONTACT_PHONE, NAV_LINKS } from "@/lib/site";
 
 export function SiteFooter() {
   return (
@@ -32,6 +32,9 @@ export function SiteFooter() {
                 {l.label}
               </Link>
             ))}
+            <Link href={BLOG_PATH} className="text-sm text-ink-600 hover:text-ink-900">
+              Guides
+            </Link>
             <a href={APP_URL} className="text-sm text-ink-600 hover:text-ink-900">
               Open the app
             </a>

@@ -90,6 +90,16 @@ export const CONTACT_EMAIL = "contact@mivikto.store";
  * they are anchors into the homepage, and writing them as "/#how-it-works" here
  * would read as three separate routes.
  */
+/**
+ * The guides index.
+ *
+ * A real route, unlike NAV_LINKS below, which are all fragments into the
+ * homepage. Kept out of that list precisely so it cannot be mistaken for one:
+ * the header and footer render those as `/${href}`, and a path in there would
+ * come out as a double slash.
+ */
+export const BLOG_PATH = "/blog";
+
 export const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#for-shops", label: "For shop owners" },
